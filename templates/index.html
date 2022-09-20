@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block body %}
+	{% if notice %}<p class="notice"><b>{{ notice }}</b></p>{% endif %}
+	<form id="form" class="pure-form pure-form-stacked" name="contact" method="post" action="/">
+		<fieldset>
+			<legend>Secure Submision Form</legend>
+			<span class="pure-form-message">
+				Please use this form when instructed by the EF team member from @ethereum.org email to submit documents. You can submit any kind of file and an accompanying message.<br><br>
+				Your file and message will be strongly encrypted before leaving your device. You will get an ID for your submission. You can use this ID to refer to the submission in future correspondence. Please record it somewhere, it's not a secret.<br><br>
+			</span>
+			<label id="recipientLabel" for="recipient">Recipient team:</label>
+			<select id="recipientSelect" required>
+				<option value="legal" selected>Legal</option>
+				<option value="devcon">Devcon</option>
+				<option value="esp">ESP</option>
+				<option value="security">Security</option>
+			</select>
+
+			<label for="text">Message:</label>
+			<textarea id="text" name="text" type="text" placeholder="Write a message. You could mention your name or email and short description of the file contents."></textarea>
+
+			<label for="file-selector">File Upload (15Mb limit):</label>
+			<input id="file-selector" type="file">
+
+			<textarea id="message" name="message" hidden="true"></textarea>
+			<textarea id="attachment" name="attachment" hidden="true"></textarea>
+			<textarea id="filename" name="filename" hidden="true"></textarea>
+			<textarea id="recipientText" name="recipient" hidden="true"></textarea>
+			<br />
+			<div class="g-recaptcha" data-sitekey="6LcSMmghAAAAAO62BSBt360U3kWg21by1ts2oEVc" data-callback="enableBtn"></div>
+			<br />
+			<br />
+			<button id="button" type="submit" class="pure-button pure-button-primary" disabled="disabled">Submit</button>
+		</fieldset>
+	</form>
+{% endblock %}
