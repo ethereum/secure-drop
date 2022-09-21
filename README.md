@@ -1,7 +1,7 @@
 # Secure Drop
 
 Secure-drop provides a way for users to securely, using browser-side pgp encryption on the client, submit files and/or messages to specified recipients in the Ethereum Foundation via a [web form](https://insertlink).
-
+![Image](screenshot.png)
 
 ## User flow
 
