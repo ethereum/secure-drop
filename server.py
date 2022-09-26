@@ -42,14 +42,16 @@ def index():
                html_content=text)
 
             if attachment:
-                encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
-                attachedFile = Attachment(
-                    FileContent(encoded_file),
-                    FileName(filename + '.pgp'),
-                    FileType('application/pgp-encrypted'),
-                    Disposition('attachment')
-                )
-                message.attachment = attachedFile
+                for file in attachment:
+                    encoded_file = base64.b64encode(file.encode("utf-8")).decode()
+                    attachedFile = Attachment(
+                        FileContent(encoded_file),
+                        FileName(filename + '.pgp'),
+                        FileType('application/pgp-encrypted'),
+                        Disposition('attachment')
+                    )
+                    message.attachments.push(attachedFile)
+                    
 
             try:
                sg = SendGridAPIClient(SENDGRIDAPICLIENT)
