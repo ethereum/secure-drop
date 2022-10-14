@@ -160,7 +160,24 @@ PtwCMZUJ3kc/skOrs6bOI19iBNaEoNX5Dllm7UHjOgWNDQkcCuOCxucKano=
 =arte
 -----END PGP PUBLIC KEY BLOCK------`;
 
-publicKeys['devcon']=publicKeys['esp']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
+publicKeys['devcon']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: FlowCrypt Email Encryption 8.2.7
+Comment: Seamlessly send and receive encrypted email
+
+xjMEX77ToRYJKwYBBAHaRw8BAQdAr7tOE5BlE7xmFN3IO31Hz+3UMn8VY/hm
++hX7Gmx1Ef/NJ0FkYW0gTGVlIDxhZGFtLnNjaHdlaXR6ZXJAZXRoZXJldW0u
+b3JnPsKPBBAWCgAgBQJfvtOhBgsJBwgDAgQVCAoCBBYCAQACGQECGwMCHgEA
+IQkQ4jlgleReaWoWIQTm3CZ/wPOAnB6hdGziOWCV5F5pauKMAQDPwSo8dDEi
+fBCHs7E5z3GdwdzpTwaePovDdu5SL3P+zgD+I9SaCMKhAMyehqL7N7ZzuZjR
+XRrBLvobtt3F7efipgzOOARfvtOhEgorBgEEAZdVAQUBAQdAwVJPqB00z7p0
+By53+LSJgMssgRCOdRbBzXYaf2ruZRYDAQgHwngEGBYIAAkFAl++06ECGwwA
+IQkQ4jlgleReaWoWIQTm3CZ/wPOAnB6hdGziOWCV5F5palKGAP9Vu2448noR
+LKWUkgvN8vc8m7Tjt7imQt1f/+WW1U8GJwEA1EjqeSbSmneHqP/aDqG90O1D
+9rDo9QaPTD5TCA2SkwA=
+=WxWp
+-----END PGP PUBLIC KEY BLOCK-----`;
+
+publicKeys['esp']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
 Comment: GPGTools - https://gpgtools.org
 
 mQENBF7yM6EBCACZxuSBcGiUWn0HwqHyf2Q2VDYYBzLTHAxEXbEG5aRnFKOzAEFL
@@ -198,5 +215,4 @@ G602yblAOjAbF21uiO+2/oJCgW3C+BfcTw88Fr78773gvtSAZ4yOnHBDl4ngldHL
 n3KFe3G220UeHpYCxE7OazrhWs6Ka5HR3OruzQh0RInYC0dbrgoevxCspcxzJ2Bm
 rGb4IjrOLol3OJ0MFRL+vQRg2WElaEtcIWyvvzGrXiIrxj9lKHf4lnesQJBxJzo=
 =CwoX
------END PGP PUBLIC KEY BLOCK-----`
-
+-----END PGP PUBLIC KEY BLOCK-----`;
