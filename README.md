@@ -18,18 +18,19 @@ Secure-drop provides a way for users to securely, using browser-side pgp encrypt
 * flask
 * sendgrid
 * flask_recaptcha
+* dotenv
 
 
 ### Services
 
-* sendgrid
-* google recaptcha
+* Sendgrid
+* Google reCAPTCHA
 
 
-## Setup
+## New setup
 
-In [server.py](server.py), change the "insertValue" to the corresponding values in your setup.
-Public keys can be found in [static/js/public-keys.js](static/js/public-keys.js)
+Make a fork. Set environment variables in `.env` file or other way. Update the templates and emails in server.py.
+Update public keys in [static/js/public-keys.js](static/js/public-keys.js).
 
 
 ## Security

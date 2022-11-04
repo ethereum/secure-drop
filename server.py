@@ -6,15 +6,18 @@ from flask_recaptcha import ReCaptcha
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (Mail, Attachment, FileContent, FileName, FileType, Disposition)
 import base64
+from dotenv import load_dotenv
+
+load_dotenv()
+
+if not set(['RECAPTCHASITEKEY', 'RECAPTCHASECRETKEY', 'SENDGRIDAPIKEY', 'SENDGRIDFROMEMAIL']).issubset(os.environ):
+    print("Failed to start. Please set the environment variables RECAPTCHASITEKEY, RECAPTCHASECRETKEY, SENDGRIDAPIKEY, and SENDGRIDFROMEMAIL")
+    exit(1)
 
 RECAPTCHASITEKEY = os.environ['RECAPTCHASITEKEY']
 RECAPTCHASECRETKEY = os.environ['RECAPTCHASECRETKEY']
 SENDGRIDAPIKEY = os.environ['SENDGRIDAPIKEY']
 FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
-
-if not RECAPTCHASITEKEY or not RECAPTCHASECRETKEY or not SENDGRIDAPIKEY or not FROMEMAIL:
-    print("Failed to start. Please set the environment variables RECAPTCHASITEKEY, RECAPTCHASECRETKEY, SENDGRIDAPIKEY, and SENDGRIDFROMEMAIL")
-    exit(1)
 
 app = Flask(__name__)
 app.config['RECAPTCHA_SITE_KEY'] = RECAPTCHASITEKEY
