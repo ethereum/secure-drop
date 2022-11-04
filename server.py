@@ -7,10 +7,14 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (Mail, Attachment, FileContent, FileName, FileType, Disposition)
 import base64
 
-RECAPTCHASITEKEY = insertValue
-RECAPTCHASECRETKEY = insertValue
-FROMEMAIL = insertValue
-SENDGRIDAPICLIENT = insertValue
+RECAPTCHASITEKEY = os.environ['RECAPTCHASITEKEY']
+RECAPTCHASECRETKEY = os.environ['RECAPTCHASECRETKEY']
+SENDGRIDAPIKEY = os.environ['SENDGRIDAPIKEY']
+FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
+
+if not RECAPTCHASITEKEY or not RECAPTCHASECRETKEY or not SENDGRIDAPIKEY or not FROMEMAIL:
+    print("Failed to start. Please set the environment variables RECAPTCHASITEKEY, RECAPTCHASECRETKEY, SENDGRIDAPIKEY, and SENDGRIDFROMEMAIL")
+    exit(1)
 
 app = Flask(__name__)
 app.config['RECAPTCHA_SITE_KEY'] = RECAPTCHASITEKEY
@@ -29,7 +33,7 @@ def index():
             filename = request.form['filename'].encode('ascii', 'ignore').decode() # remove non-ascii characters
             
             if recipient in ['legal', 'devcon', 'esp', 'security']:
-                toEmail = recipient + "@ethereum.org" if recipient != 'legal' else "kyc@ethereum.org"
+                toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
                 identifier = recipient + datetime.now().strftime(':%Y:%m:%d:%H:%M:%S:') + str(Random().randint(1000, 9999))
             else:
                 notice = 'Error: Invalid recipient!'
@@ -52,7 +56,7 @@ def index():
                 message.attachment = attachedFile
 
             try:
-               sg = SendGridAPIClient(SENDGRIDAPICLIENT)
+               sg = SendGridAPIClient(SENDGRIDAPIKEY)
                response = sg.send(message)
             except Exception as e:
                print(e.message)
