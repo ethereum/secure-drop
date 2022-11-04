@@ -29,7 +29,7 @@ def index():
             filename = request.form['filename'].encode('ascii', 'ignore').decode() # remove non-ascii characters
             
             if recipient in ['legal', 'devcon', 'esp', 'security']:
-                toEmail = recipient + "@ethereum.org"
+                toEmail = recipient + "@ethereum.org" if recipient != 'legal' else "kyc@ethereum.org"
                 identifier = recipient + datetime.now().strftime(':%Y:%m:%d:%H:%M:%S:') + str(Random().randint(1000, 9999))
             else:
                 notice = 'Error: Invalid recipient!'
