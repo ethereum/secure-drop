@@ -1,11 +1,14 @@
+import os
 from datetime import datetime
 from random import Random
+import base64
+
 from flask import Flask, render_template, request
-import os
 from flask_recaptcha import ReCaptcha
+
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (Mail, Attachment, FileContent, FileName, FileType, Disposition)
-import base64
+
 from dotenv import load_dotenv
 
 load_dotenv()
