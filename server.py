@@ -1,6 +1,6 @@
 from datetime import datetime
 from random import Random
-from flask import *
+from flask import Flask, render_template, request
 import os
 from flask_recaptcha import ReCaptcha
 from sendgrid import SendGridAPIClient
