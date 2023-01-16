@@ -28,6 +28,38 @@ app.config['RECAPTCHA_SECRET_KEY'] = RECAPTCHASECRETKEY
 app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024    # 15 Mb limit
 recaptcha = ReCaptcha(app)
 
+
+def valid_recipient(recipient):
+    if recipient in ['legal', 'devcon', 'esp', 'security']:
+        return True
+    return False
+
+def get_identifier(recipient, now=None, randint=None):
+    if now is None:
+        now = datetime.now()
+    if randint is None:
+        randint = Random().randint(1000, 9999)
+    return '%s:%s:%s' % (recipient, now.strftime('%Y:%m:%d:%H:%M:%S'), randint)
+
+def create_email(toEmail, identifier, text, filename, attachment):
+    message = Mail(
+       from_email=FROMEMAIL,
+       to_emails=toEmail,
+       subject='Secure Form Submission %s' % identifier,
+       html_content=text)
+
+    if attachment:
+        encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
+        attachedFile = Attachment(
+            FileContent(encoded_file),
+            FileName(filename + '.pgp'),
+            FileType('application/pgp-encrypted'),
+            Disposition('attachment')
+        )
+        message.add_attachment(attachedFile)
+    return message
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     notice = ''
@@ -38,28 +70,14 @@ def index():
             recipient = request.form['recipient']
             filename = request.form['filename'].encode('ascii', 'ignore').decode() # remove non-ascii characters
             
-            if recipient in ['legal', 'devcon', 'esp', 'security']:
-                toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
-                identifier = recipient + datetime.now().strftime(':%Y:%m:%d:%H:%M:%S:') + str(Random().randint(1000, 9999))
-            else:
+            if not valid_recipient(recipient):
                 notice = 'Error: Invalid recipient!'
                 return render_template('result.html', notice=notice)
 
-            message = Mail(
-               from_email=FROMEMAIL,
-               to_emails=toEmail,
-               subject='Secure Form Submission ' + identifier,
-               html_content=text)
+            toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
+            identifier = get_identifier(recipient)
 
-            if attachment:
-                encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
-                attachedFile = Attachment(
-                    FileContent(encoded_file),
-                    FileName(filename + '.pgp'),
-                    FileType('application/pgp-encrypted'),
-                    Disposition('attachment')
-                )
-                message.attachment = attachedFile
+            message = create_email(toEmail, identifier, text, filename, attachment)
 
             try:
                sg = SendGridAPIClient(SENDGRIDAPIKEY)
