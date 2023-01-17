@@ -29,6 +29,14 @@ app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024    # 15 Mb limit
 recaptcha = ReCaptcha(app)
 
 
+def parse_form(form):
+    text = form['message']
+    attachment = form['attachment']
+    recipient = form['recipient']
+    filename = form['filename'].encode('ascii', 'ignore').decode() # remove non-ascii characters
+    all_attachments = [(filename, attachment)]
+    return text, recipient, all_attachments
+
 def valid_recipient(recipient):
     if recipient in ['legal', 'devcon', 'esp', 'security']:
         return True
@@ -41,14 +49,14 @@ def get_identifier(recipient, now=None, randint=None):
         randint = Random().randint(1000, 9999)
     return '%s:%s:%s' % (recipient, now.strftime('%Y:%m:%d:%H:%M:%S'), randint)
 
-def create_email(toEmail, identifier, text, filename, attachment):
+def create_email(toEmail, identifier, text, all_attachments):
     message = Mail(
        from_email=FROMEMAIL,
        to_emails=toEmail,
        subject='Secure Form Submission %s' % identifier,
        html_content=text)
 
-    if attachment:
+    for filename, attachment in all_attachments:
         encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
         attachedFile = Attachment(
             FileContent(encoded_file),
@@ -59,17 +67,13 @@ def create_email(toEmail, identifier, text, filename, attachment):
         message.add_attachment(attachedFile)
     return message
 
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
     notice = ''
     if request.method == 'POST':
         if recaptcha.verify():
-            text = request.form['message']
-            attachment = request.form['attachment']
-            recipient = request.form['recipient']
-            filename = request.form['filename'].encode('ascii', 'ignore').decode() # remove non-ascii characters
-            
+            text, recipient, all_attachments = parse_form(request.form)
+
             if not valid_recipient(recipient):
                 notice = 'Error: Invalid recipient!'
                 return render_template('result.html', notice=notice)
@@ -77,7 +81,7 @@ def index():
             toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
             identifier = get_identifier(recipient)
 
-            message = create_email(toEmail, identifier, text, filename, attachment)
+            message = create_email(toEmail, identifier, text, all_attachments)
 
             try:
                sg = SendGridAPIClient(SENDGRIDAPIKEY)
