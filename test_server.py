@@ -1,3 +1,10 @@
+from os import environ
+
+environ.setdefault("SENDGRIDFROMEMAIL", "person@sender.org")
+environ.setdefault("SENDGRIDAPIKEY", "testsendgridapikey")
+environ.setdefault("RECAPTCHASITEKEY", "testrecaptchasitekey")
+environ.setdefault("RECAPTCHASECRETKEY", "testrecaptchasecretkey")
+
 from datetime import datetime
 import server
 
