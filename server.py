@@ -31,9 +31,9 @@ recaptcha = ReCaptcha(app)
 
 def parse_form(form):
     text = form['message']
-    attachment = form['attachment']
     recipient = form['recipient']
-    filename = form['filename'].encode('ascii', 'ignore').decode() # remove non-ascii characters
+    attachment = form['attachment-0']
+    filename = form['filename-0'].encode('ascii', 'ignore').decode() # remove non-ascii characters
     all_attachments = [(filename, attachment)]
     return text, recipient, all_attachments
 

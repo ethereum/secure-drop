@@ -18,16 +18,17 @@ document.addEventListener('DOMContentLoaded', function() {
 	fileSelector.addEventListener('change', (event) => {
 		const fileList = event.target.files;
 
-		form.elements['filename'].value = fileList[0].name;
+		var i = 0;
+		form.elements['filename-' + i].value = fileList[i].name;
 		const reader = new FileReader();
 		reader.addEventListener('load', (event) => {
 			var arrayBuffer = event.target.result;
 			var fileData = new Uint8Array(arrayBuffer);
 			encryptFile(fileData).then(function(encrypted_file) {
-				form.elements['attachment'].value = encrypted_file;
+				form.elements['attachment-' + i].value = encrypted_file;
 			});
 		});
-		reader.readAsArrayBuffer(fileList[0]);
+		reader.readAsArrayBuffer(fileList[i]);
 	}, false);
 
 	document.forms[0].addEventListener("submit", function(evt) {

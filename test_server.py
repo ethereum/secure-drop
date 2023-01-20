@@ -11,8 +11,8 @@ import server
 form = {
     'message': 'hello',
     'recipient': 'a@a.a',
-    'filename': 'file.txt',
-    'attachment': 'content',
+    'filename-0': 'file.txt',
+    'attachment-0': 'content',
 }
 text, recipient, all_attachments = server.parse_form(form)
 assert 'hello' == text
