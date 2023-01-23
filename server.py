@@ -22,6 +22,9 @@ RECAPTCHASECRETKEY = os.environ['RECAPTCHASECRETKEY']
 SENDGRIDAPIKEY = os.environ['SENDGRIDAPIKEY']
 FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
 
+# this needs to be reflected in the `templates/index.html` file
+NUMBER_OF_ATTACHMENTS = 5
+
 app = Flask(__name__)
 app.config['RECAPTCHA_SITE_KEY'] = RECAPTCHASITEKEY
 app.config['RECAPTCHA_SECRET_KEY'] = RECAPTCHASECRETKEY
@@ -32,9 +35,12 @@ recaptcha = ReCaptcha(app)
 def parse_form(form):
     text = form['message']
     recipient = form['recipient']
-    attachment = form['attachment-0']
-    filename = form['filename-0'].encode('ascii', 'ignore').decode() # remove non-ascii characters
-    all_attachments = [(filename, attachment)]
+
+    all_attachments = []
+    for i in range(NUMBER_OF_ATTACHMENTS):
+        attachment = form['attachment-%s' % i]
+        filename = form['filename-%s' % i].encode('ascii', 'ignore').decode() # remove non-ascii characters
+        all_attachments.append((filename, attachment))
     return text, recipient, all_attachments
 
 def valid_recipient(recipient):

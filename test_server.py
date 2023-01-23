@@ -11,13 +11,28 @@ import server
 form = {
     'message': 'hello',
     'recipient': 'a@a.a',
-    'filename-0': 'file.txt',
-    'attachment-0': 'content',
+
+    'filename-0': 'file0.txt',
+    'attachment-0': 'content0',
+    'filename-1': 'file1.txt',
+    'attachment-1': 'content1',
+    'filename-2': 'file2.txt',
+    'attachment-2': 'content2',
+    'filename-3': 'file3.txt',
+    'attachment-3': 'content3',
+    'filename-4': 'file4.txt',
+    'attachment-4': 'content4',
 }
 text, recipient, all_attachments = server.parse_form(form)
 assert 'hello' == text
 assert 'a@a.a' == recipient
-assert [('file.txt', 'content')] == all_attachments
+assert [
+    ('file0.txt', 'content0'),
+    ('file1.txt', 'content1'),
+    ('file2.txt', 'content2'),
+    ('file3.txt', 'content3'),
+    ('file4.txt', 'content4'),
+] == all_attachments
 
 assert server.valid_recipient('legal')
 assert not server.valid_recipient('nonlegal')
@@ -43,4 +58,21 @@ a = email.attachments[0]
 assert "myfile.txt.pgp" == a.file_name.file_name
 assert "application/pgp-encrypted" == a.file_type.file_type
 assert "ZW5jcnlwdGVkX2ZpbGVfY29udGVudA==" == a.file_content.file_content
+
+two_attachments = [
+    ('myfile1.txt', 'encrypted_file_content1'),
+    ('myfile2.txt', 'encrypted_file_content2'),
+]
+
+email = server.create_email(toEmail, identifier, text, two_attachments)
+
+a0 = email.attachments[0]
+assert "myfile2.txt.pgp" == a0.file_name.file_name
+assert "application/pgp-encrypted" == a0.file_type.file_type
+assert "ZW5jcnlwdGVkX2ZpbGVfY29udGVudDI=" == a0.file_content.file_content
+
+a1 = email.attachments[1]
+assert "myfile1.txt.pgp" == a1.file_name.file_name
+assert "application/pgp-encrypted" == a1.file_type.file_type
+assert "ZW5jcnlwdGVkX2ZpbGVfY29udGVudDE=" == a1.file_content.file_content
 
