@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', function() {
 	const fileSelector = document.getElementById('file-selector');
 	fileSelector.addEventListener('change', (event) => {
 		const fileList = event.target.files;
+        const fileCount = form.elements['file-count'].value;
+
+        if (fileList.length > fileCount) {
+            alert("Only " + fileCount + " is allowed to process!");
+			event.target.value = "";
+            return false;
+        }
 
 		for (var i=0; i < fileList.length; i++) {
 			current_file = fileList[i];
@@ -26,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
 			filename_field.value = current_file.name;
 
 			var reader = new FileReader();
+			// special treatment for `addEventListener` in a *for loop*
 			reader.attachment_field = attachment_field;
 			reader.addEventListener('load', (event) => {
 				var arrayBuffer = event.target.result;

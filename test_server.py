@@ -4,6 +4,7 @@ environ.setdefault("SENDGRIDFROMEMAIL", "person@sender.org")
 environ.setdefault("SENDGRIDAPIKEY", "testsendgridapikey")
 environ.setdefault("RECAPTCHASITEKEY", "testrecaptchasitekey")
 environ.setdefault("RECAPTCHASECRETKEY", "testrecaptchasecretkey")
+environ.setdefault("NUMBEROFATTACHMENTS", "2")
 
 from datetime import datetime
 import server
@@ -16,12 +17,6 @@ form = {
     'attachment-0': 'content0',
     'filename-1': 'file1.txt',
     'attachment-1': 'content1',
-    'filename-2': 'file2.txt',
-    'attachment-2': 'content2',
-    'filename-3': 'file3.txt',
-    'attachment-3': 'content3',
-    'filename-4': 'file4.txt',
-    'attachment-4': 'content4',
 }
 text, recipient, all_attachments = server.parse_form(form)
 assert 'hello' == text
@@ -29,9 +24,6 @@ assert 'a@a.a' == recipient
 assert [
     ('file0.txt', 'content0'),
     ('file1.txt', 'content1'),
-    ('file2.txt', 'content2'),
-    ('file3.txt', 'content3'),
-    ('file4.txt', 'content4'),
 ] == all_attachments
 
 assert server.valid_recipient('legal')

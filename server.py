@@ -23,7 +23,7 @@ SENDGRIDAPIKEY = os.environ['SENDGRIDAPIKEY']
 FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
 
 # this needs to be reflected in the `templates/index.html` file
-NUMBER_OF_ATTACHMENTS = 5
+NUMBER_OF_ATTACHMENTS = int(os.environ.get('NUMBEROFATTACHMENTS', '10'))
 
 app = Flask(__name__)
 app.config['RECAPTCHA_SITE_KEY'] = RECAPTCHASITEKEY
@@ -90,15 +90,15 @@ def index():
             message = create_email(toEmail, identifier, text, all_attachments)
 
             try:
-               sg = SendGridAPIClient(SENDGRIDAPIKEY)
-               response = sg.send(message)
+                sg = SendGridAPIClient(SENDGRIDAPIKEY)
+                response = sg.send(message)
             except Exception as e:
-               print(e.message)
+                print(e.message)
             notice = 'Thank you! The relevant team was notified of your submission. You could use a following identifier to refer to it in correspondence: ' + identifier
             return render_template('result.html', notice=notice)
         else:
             notice = 'Please fill out the ReCaptcha!'
-    return render_template('index.html', notice=notice)
+    return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS)
 
 @app.errorhandler(413)
 def error413(e):
