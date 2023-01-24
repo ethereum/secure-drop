@@ -77,30 +77,32 @@ def create_email(toEmail, identifier, text, all_attachments):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    notice = ''
-    if request.method == 'POST':
-        if recaptcha.verify():
-            text, recipient, all_attachments = parse_form(request.form)
+    if not request.method == 'POST':
+        notice = ''
+        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS)
+    if not recaptcha.verify():
+        notice = 'Please fill out the ReCaptcha!'
+        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS)
 
-            if not valid_recipient(recipient):
-                notice = 'Error: Invalid recipient!'
-                return render_template('result.html', notice=notice)
+    text, recipient, all_attachments = parse_form(request.form)
 
-            toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
-            identifier = get_identifier(recipient)
+    if not valid_recipient(recipient):
+        notice = 'Error: Invalid recipient!'
+        return render_template('result.html', notice=notice)
 
-            message = create_email(toEmail, identifier, text, all_attachments)
+    toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
+    identifier = get_identifier(recipient)
 
-            try:
-                sg = SendGridAPIClient(SENDGRIDAPIKEY)
-                response = sg.send(message)
-            except Exception as e:
-                print(e.message)
-            notice = 'Thank you! The relevant team was notified of your submission. You could use a following identifier to refer to it in correspondence: ' + identifier
-            return render_template('result.html', notice=notice)
-        else:
-            notice = 'Please fill out the ReCaptcha!'
-    return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS)
+    message = create_email(toEmail, identifier, text, all_attachments)
+
+    try:
+        sg = SendGridAPIClient(SENDGRIDAPIKEY)
+        response = sg.send(message)
+    except Exception as e:
+        print(e.message)
+
+    notice = 'Thank you! The relevant team was notified of your submission. You could use a following identifier to refer to it in correspondence: ' + identifier
+    return render_template('result.html', notice=notice)
 
 @app.errorhandler(413)
 def error413(e):
