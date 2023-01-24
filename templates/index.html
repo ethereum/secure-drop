@@ -25,16 +25,11 @@
 			<textarea id="message" name="message" hidden="true"></textarea>
 			<textarea id="recipientText" name="recipient" hidden="true"></textarea>
 
-			<textarea id="attachment-0" name="attachment-0" hidden="true"></textarea>
-			<textarea id="filename-0" name="filename-0" hidden="true"></textarea>
-			<textarea id="attachment-1" name="attachment-1" hidden="true"></textarea>
-			<textarea id="filename-1" name="filename-1" hidden="true"></textarea>
-			<textarea id="attachment-2" name="attachment-2" hidden="true"></textarea>
-			<textarea id="filename-2" name="filename-2" hidden="true"></textarea>
-			<textarea id="attachment-3" name="attachment-3" hidden="true"></textarea>
-			<textarea id="filename-3" name="filename-3" hidden="true"></textarea>
-			<textarea id="attachment-4" name="attachment-4" hidden="true"></textarea>
-			<textarea id="filename-4" name="filename-4" hidden="true"></textarea>
+			{% for i in range(0, attachments_number) %}
+				<textarea id="attachment-{{ i }}" name="attachment-{{ i }}" hidden="true"></textarea>
+				<textarea id="filename-{{ i }}" name="filename-{{ i }}" hidden="true"></textarea>
+			{% endfor %}
+			<input id="file-count" name="file-count" hidden="true" value="{{ attachments_number }}">
 
 			<br />
 			<div class="g-recaptcha" data-sitekey="6LcSMmghAAAAAO62BSBt360U3kWg21by1ts2oEVc" data-callback="enableBtn"></div>
