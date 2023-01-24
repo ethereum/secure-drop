@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const fileCount = form.elements['file-count'].value;
 
         if (fileList.length > fileCount) {
-            alert("Only " + fileCount + " is allowed to process!");
+            alert("Only " + fileCount + " files can be uploaded in one submission! The rest would be discarded.");
 			event.target.value = "";
             return false;
         }
