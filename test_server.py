@@ -26,6 +26,14 @@ assert [
     ('file1.txt', 'content1'),
 ] == all_attachments
 
+# empty attachment fields are omitted
+form['attachment-1'] = ''
+text, recipient, all_attachments = server.parse_form(form)
+assert [
+    ('file0.txt', 'content0'),
+] == all_attachments
+
+
 assert server.valid_recipient('legal')
 assert not server.valid_recipient('nonlegal')
 

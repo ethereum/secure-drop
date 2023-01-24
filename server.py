@@ -40,6 +40,8 @@ def parse_form(form):
     for i in range(NUMBER_OF_ATTACHMENTS):
         attachment = form['attachment-%s' % i]
         filename = form['filename-%s' % i].encode('ascii', 'ignore').decode() # remove non-ascii characters
+        if not attachment:
+            continue
         all_attachments.append((filename, attachment))
     return text, recipient, all_attachments
 
