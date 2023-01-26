@@ -24,6 +24,7 @@ FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
 
 # this needs to be reflected in the `templates/index.html` file
 NUMBER_OF_ATTACHMENTS = int(os.environ.get('NUMBEROFATTACHMENTS', '10'))
+DEBUG = bool(os.environ.get('DEBUG', False))
 
 app = Flask(__name__)
 app.config['RECAPTCHA_SITE_KEY'] = RECAPTCHASITEKEY
@@ -96,8 +97,12 @@ def index():
     message = create_email(toEmail, identifier, text, all_attachments)
 
     try:
-        sg = SendGridAPIClient(SENDGRIDAPIKEY)
-        response = sg.send(message)
+        if DEBUG:
+            print("Attempt to send email to %s" % toEmail)
+            print(message.get())
+        else:
+            sg = SendGridAPIClient(SENDGRIDAPIKEY)
+            response = sg.send(message)
     except Exception as e:
         print(e.message)
 

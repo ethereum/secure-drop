@@ -1,8 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
-	document.getElementById("text").focus();
 	var text = document.getElementById("text");
 	var recipient = document.getElementById("recipientSelect");
 	var recipientLabel = document.getElementById("recipientLabel");
+
+	text.focus();
 
 	// We can have recipient set in the URL
 	const params = new URLSearchParams(window.location.search);
@@ -61,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function encrypt(msg) {
 	var recipient = document.getElementById("recipientSelect");
-	var recipientId = recipient.value;
+	var recipientId = recipient.value; // here we expect one of 4: legal, devcon, esp, security
 	var publicKeyArmored = publicKeys[recipientId];
 	const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
 	const encrypted = await openpgp.encrypt({
