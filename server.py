@@ -80,10 +80,10 @@ def create_email(toEmail, identifier, text, all_attachments):
 def index():
     if not request.method == 'POST':
         notice = ''
-        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS)
+        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
     if not recaptcha.verify():
         notice = 'Please fill out the ReCaptcha!'
-        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS)
+        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
 
     text, recipient, all_attachments = parse_form(request.form)
 
