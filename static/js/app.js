@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	var text = document.getElementById("text");
 	var recipient = document.getElementById("recipientSelect");
 	var recipientLabel = document.getElementById("recipientLabel");
+	var messageLabel = document.getElementById("messageLabel");
 
 	text.focus();
 
@@ -14,6 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
 		recipientLabel.style.visibility = 'hidden';
 	};
 
+	// Custom text for ESP recipient
+	recipient.addEventListener("change", function() {
+		messageLabel.innerHTML = (recipient.value == "esp") ? "Please include Grant ID in the message. Example: \"FY22-0123\":" : "Message:";
+	});
+
 	// Multi file upload
 	const fileSelector = document.getElementById('file-selector');
 	fileSelector.addEventListener('change', (event) => {
@@ -21,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const fileCount = form.elements['file-count'].value;
 
         if (fileList.length > fileCount) {
-            alert("Only " + fileCount + " files can be uploaded in one submission! The rest would be discarded.");
+            alert("Action cancelled! Only " + fileCount + " files can be uploaded in one submission. Make several submissions if you need to upload more files.");
 			event.target.value = "";
             return false;
         }
