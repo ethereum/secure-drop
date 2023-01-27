@@ -1,6 +1,6 @@
 # Secure Drop
 
-Secure-drop provides a way for users to securely, using browser-side pgp encryption on the client, submit files and/or messages to specified recipients in the Ethereum Foundation via a [web form](https://insertlink).
+Secure-drop provides a way for users to securely, using browser-side pgp encryption on the client, submit files and/or messages to specified recipients in the Ethereum Foundation via a [web form](https://secure-drop.ethereum.org/).
 ![Image](screenshot.png)
 
 ## User flow
@@ -8,20 +8,15 @@ Secure-drop provides a way for users to securely, using browser-side pgp encrypt
 1. User writes a message and/or selects a file with a selected recipient.
 2. The user's browser encrypts the content using [openpgp.js](https://openpgpjs.org/) and a public key belonging to the recipient, before submitting the encrypted content to the server.
 3. The server uses its email delivery service to send the email to the intended recipient.
-4. The recipient receives the encrypted message/file, and can then decrypt it using their private key.
+4. The recipient receives the encrypted message/file, and can then decrypt it using their private PGP key.
 
 
 ## Dependencies
 
-### Python 3
-
-* flask
-* sendgrid
-* flask_recaptcha
-* dotenv
+Python 3, see `requirements.txt`.
 
 
-### Services
+### Third Party Services
 
 * Sendgrid
 * Google reCAPTCHA
@@ -29,8 +24,7 @@ Secure-drop provides a way for users to securely, using browser-side pgp encrypt
 
 ## New setup
 
-Make a fork. Set environment variables in `.env` file or other way. Update the templates and emails in server.py.
-Update public keys in [static/js/public-keys.js](static/js/public-keys.js).
+Make a fork of the repository. Set environment variables in `.env` file, using the provided example. Customise the templates and code. Update public keys in [static/js/public-keys.js](static/js/public-keys.js). Deploy to your web server.
 
 
 ## Security
