@@ -31,11 +31,13 @@
 			{% endfor %}
 			<input id="file-count" name="file-count" hidden="true" value="{{ attachments_number }}">
 
+			{% if hascaptcha %}
 			<br />
 			<div class="g-recaptcha" data-sitekey="{{ recaptcha_sitekey }}" data-callback="enableBtn"></div>
+			{% endif %}
 			<br />
 			<br />
-			<button id="button" type="submit" class="pure-button pure-button-primary" disabled="disabled">Submit</button>
+			<button id="button" type="submit" class="pure-button pure-button-primary"{% if hascaptcha %} disabled="disabled"{% endif %}>Submit</button>
 		</fieldset>
 	</form>
 {% endblock %}

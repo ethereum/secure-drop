@@ -80,10 +80,12 @@ def create_email(toEmail, identifier, text, all_attachments):
 def index():
     if not request.method == 'POST':
         notice = ''
-        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
-    if not recaptcha.verify():
-        notice = 'Please fill out the ReCaptcha!'
-        return render_template('index.html', notice=notice, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
+        return render_template('index.html', notice=notice, hascaptcha=not DEBUG, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
+    if not DEBUG:
+        # won't even look on Captcha for debug mode
+        if not recaptcha.verify():
+            notice = 'Error: ReCaptcha verification failed! You would need to re-submit the request.'
+            return render_template('result.html', notice=notice)
 
     text, recipient, all_attachments = parse_form(request.form)
 
