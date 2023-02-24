@@ -1,7 +1,15 @@
 {% extends "layout.html" %}
+{% block head %}
+<script src="static/js/es6-promise.min.js" type="text/javascript"></script>
+<script src="static/js/openpgp.min.js" type="text/javascript"></script>
+<script src="static/js/public-keys.js" type="text/javascript"></script>
+<script src="static/js/dropzone.min.js"></script>
+<link href="static/css/dropzone.min.css" rel="stylesheet" type="text/css" />
+<script src="static/js/app.js" type="text/javascript"></script>
+{% endblock %}
 {% block body %}
 	{% if notice %}<p class="notice"><b>{{ notice }}</b></p>{% endif %}
-	<form id="form" class="pure-form pure-form-stacked" name="contact" method="post" action="/">
+	<form id="submission-form" class="pure-form pure-form-stacked" name="contact" method="post" action="/">
 		<fieldset>
 			<legend>Secure Submission Form</legend>
 			<span class="pure-form-message">
@@ -15,12 +23,14 @@
 				<option value="esp">ESP</option>
 				<option value="security">Security</option>
 			</select>
-
+			<br>
 			<label id="messageLabel" for="text">Message:</label>
 			<textarea id="text" name="text" type="text" placeholder="Write a message. Please mention your name or email and short description of the file contents."></textarea>
+			<br>
+			<label for="file-selector">The encrypted container that would be sent with the message (15Mb limit):</label>
 
-			<label for="file-selector">File Upload (15Mb limit):</label>
-			<input id="file-selector" type="file" multiple>
+			<button id="add-file-button" type="button" class="pure-button">Add file</button>
+			<div id="dropzone-area" class="dropzone"></div>
 
 			<textarea id="message" name="message" hidden="true"></textarea>
 			<textarea id="recipientText" name="recipient" hidden="true"></textarea>
@@ -37,7 +47,7 @@
 			{% endif %}
 			<br />
 			<br />
-			<button id="button" type="submit" class="pure-button pure-button-primary"{% if hascaptcha %} disabled="disabled"{% endif %}>Submit</button>
+			<button id="button" type="submit" class="pure-button pure-button-primary"{% if hascaptcha %} disabled="disabled"{% endif %}>Encrypt and submit the data</button>
 		</fieldset>
 	</form>
 {% endblock %}

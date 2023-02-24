@@ -4,6 +4,9 @@ form {padding: 1em;}
 .pure-form textarea[readonly] {background: #fff; border-color: #fff;}
 #content-container { margin: 40px auto; max-width: 800px; border: 1px solid #ccc; border-radius:6px; padding: 1em; background: #fff; }
 #logo-container { text-align: center; }
-textarea#text { width: 500px; height: 200px; }
+textarea#text { width: 760px; height: 200px; }
 .notice { background-color: orange; padding: 10px; }
 .result-message {line-height: 200%;}
+#add-file-button { margin-bottom: 15px; background-color: green; color: white; }
+.dropzone .dz-progress { display: none; }
+.dropzone .dz-preview .dz-remove { margin-top: 15px; color: #b70d0d; }
