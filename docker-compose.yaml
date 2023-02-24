@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: gunicorn server:app -w 4 -b 0.0.0.0:4200 --access-logfile - --error-logfile -
+    ports:
+      - "4200:4200"
+    volumes:
+      - .:/app
+    environment:
+      FLASK_APP: server.py
+      FLASK_DEBUG: ${DEBUG}
+      DEBUG: ${DEBUG}
+      SENDGRIDFROMEMAIL: ${SENDGRIDFROMEMAIL}
+      SENDGRIDAPIKEY: ${SENDGRIDAPIKEY}
+      RECAPTCHASITEKEY: ${RECAPTCHASITEKEY}
+      RECAPTCHASECRETKEY: ${RECAPTCHASECRETKEY}
