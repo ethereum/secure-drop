@@ -17,6 +17,7 @@ build/
 .idea/
 docs/_build/
 .vscode
+secure-drop.log
 
 # Coverage reports
 htmlcov/

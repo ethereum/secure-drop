@@ -1,9 +1,10 @@
 import os
+import logging
 from datetime import datetime
 from random import Random
 import base64
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from flask_recaptcha import ReCaptcha
 
 from sendgrid import SendGridAPIClient
@@ -32,6 +33,8 @@ app.config['RECAPTCHA_SECRET_KEY'] = RECAPTCHASECRETKEY
 app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024    # 15 Mb limit
 recaptcha = ReCaptcha(app)
 
+app.config['LOG_FILE'] = 'secure-drop.log'
+logging.basicConfig(filename=app.config['LOG_FILE'], level=logging.INFO)
 
 def parse_form(form):
     text = form['message']
@@ -65,7 +68,10 @@ def create_email(toEmail, identifier, text, all_attachments):
        subject='Secure Form Submission %s' % identifier,
        html_content=text)
 
-    for filename, attachment in all_attachments:
+    for item in all_attachments:
+        filename = item['filename']
+        attachment = item['attachment']
+
         encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
         attachedFile = Attachment(
             FileContent(encoded_file),
@@ -76,40 +82,63 @@ def create_email(toEmail, identifier, text, all_attachments):
         message.add_attachment(attachedFile)
     return message
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 def index():
-    if not request.method == 'POST':
-        notice = ''
-        return render_template('index.html', notice=notice, hascaptcha=not DEBUG, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
-    if not DEBUG:
-        # won't even look on Captcha for debug mode
-        if not recaptcha.verify():
-            notice = 'Error: ReCaptcha verification failed! You would need to re-submit the request.'
-            return render_template('result.html', notice=notice)
+    return render_template('index.html', notice='', hascaptcha=not DEBUG, attachments_number=NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
 
-    text, recipient, all_attachments = parse_form(request.form)
-
-    if not valid_recipient(recipient):
-        notice = 'Error: Invalid recipient!'
-        return render_template('result.html', notice=notice)
-
-    toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
-    identifier = get_identifier(recipient)
-
-    message = create_email(toEmail, identifier, text, all_attachments)
-
+@app.route('/submit-encrypted-data', methods=['POST'])
+def submit():
     try:
+        # Parse JSON data from request
+        data = request.get_json()
+
+        # Won't even look on Captcha for debug mode
+        if not DEBUG:
+            if not recaptcha.verify(response=data['g-recaptcha-response']):
+                raise ValueError('Error: ReCaptcha verification failed! You would need to re-submit the request.')
+        
+        # Extract fields from JSON data
+        message = data['message']
+        recipient = data['recipient']
+        files = data['files']
+
+        if not message:
+            raise ValueError('Error: empty message!')
+
+        if not valid_recipient(recipient):
+            raise ValueError('Error: Invalid recipient!')
+        
+        # Get submission statistics
+        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        message_length = len(message)
+        file_count = len(files)
+        
+        toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
+        identifier = get_identifier(recipient)
+
+        log_data = f"{date} - message to: {recipient}, identifier: {identifier}, length: {message_length}, file count: {file_count}"
+        logging.info(log_data)
+
+        message = create_email(toEmail, identifier, message, files)
+
         if DEBUG:
             print("Attempt to send email to %s" % toEmail)
             print(message.get())
         else:
             sg = SendGridAPIClient(SENDGRIDAPIKEY)
             response = sg.send(message)
-    except Exception as e:
-        print(e.message)
 
-    notice = 'Thank you! The relevant team was notified of your submission. You could use a following identifier to refer to it in correspondence: ' + identifier
-    return render_template('result.html', notice=notice)
+        notice = 'Thank you! The relevant team was notified of your submission. You could use a following identifier to refer to it in correspondence: <b>' + identifier + '</b>'
+        
+        # Return success response
+        return jsonify({'status': 'success', 'message': notice})
+    
+    except Exception as e:
+        # Log error message and return failure response
+        error_message = str(e)
+        print(error_message)
+        return jsonify({'status': 'failure', 'message': error_message})
+
 
 @app.errorhandler(413)
 def error413(e):

@@ -5,6 +5,7 @@
 <script src="static/js/public-keys.js" type="text/javascript"></script>
 <script src="static/js/dropzone.min.js"></script>
 <link href="static/css/dropzone.min.css" rel="stylesheet" type="text/css" />
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script src="static/js/app.js" type="text/javascript"></script>
 {% endblock %}
 {% block body %}
@@ -43,7 +44,7 @@
 
 			{% if hascaptcha %}
 			<br />
-			<div class="g-recaptcha" data-sitekey="{{ recaptcha_sitekey }}" data-callback="enableBtn"></div>
+			<div class="g-recaptcha" id="gRecaptcha" data-sitekey="{{ recaptcha_sitekey }}" data-callback="captchaSolved" data-expired-callback="captchaExpired"></div>
 			{% endif %}
 			<br />
 			<br />

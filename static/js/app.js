@@ -72,6 +72,37 @@ function initDropzone() {
 	  });
 }
 
+
+var dataArray;
+function acceptEncryptedData(data) {
+	if (data.name == 'message') {
+		dataArray['message'] = data.data;
+	}
+	else {
+		dataArray.files.push({'filename': data.name, 'attachment': data.data});
+	}
+	dataArray.receivedChunks++;
+
+	if (dataArray.receivedChunks == dataArray.requiredChunks) {
+		console.log('all chunks received, submitting form');
+		const gRecaptchaBlock = document.getElementById('gRecaptcha');
+		const recipient = document.getElementById("recipientSelect");
+
+		dataArray['g-recaptcha-response'] = gRecaptchaBlock ? grecaptcha.getResponse() : null;
+		dataArray['recipient'] = recipient.value;
+
+		postData('/submit-encrypted-data', dataArray)
+		.then(response => {
+			console.log(response);
+			displayResult(response.status, response.message)
+		})
+		.catch(error => {
+			console.error(error);
+			displayResult('error', 'An error occurred while submitting the form. Please try again later.')
+		});
+	}
+}
+
 document.addEventListener('DOMContentLoaded', function() {
 	var text = document.getElementById("text");
 	var recipient = document.getElementById("recipientSelect");
@@ -89,11 +120,12 @@ document.addEventListener('DOMContentLoaded', function() {
 		recipientLabel.style.visibility = 'hidden';
 	};
 
-	// Custom text for ESP recipient
+	// Custom text for ESP recipient only
 	recipient.addEventListener("change", function() {
 		messageLabel.innerHTML = (recipient.value == "esp") ? "Please include Grant ID in the message. Example: \"FY22-0123\":" : "Message:";
 	});
 
+	// Redirect clicks on a greed button
 	const addFileButton = document.getElementById('add-file-button');
 	addFileButton.addEventListener('click', (event) => {
 		// Get a reference to the file input element used by Dropzone.js
@@ -106,77 +138,82 @@ document.addEventListener('DOMContentLoaded', function() {
 	// Multi file upload meets encryption
 	document.forms[0].addEventListener("submit", function(evt) {
 		evt.preventDefault();
-		const form = evt.target;
+		captchaExpired(); // disable the submit button this way to prevent double submission
 		
 		const selectedFiles = Dropzone.instances[0].files || [];
-		var promises = [];
+		dataArray = { message: '', files: [], requiredChunks: selectedFiles.length+1, receivedChunks: 0 };
 
+		encrypt(text.value).then(acceptEncryptedData);
+		
 		for (var i=0; i < selectedFiles.length; i++) {
-			current_file = selectedFiles[i];
-			filename_field = form.elements['filename-' + i];
-			attachment_field = form.elements['attachment-' + i];
-
-			filename_field.value = current_file.name;
+			let current_file = selectedFiles[i];
 
 			var reader = new FileReader();
-			// special treatment for `addEventListener` in a *for loop*
-			reader.attachment_field = attachment_field;
 			reader.addEventListener('load', (event) => {
 				var arrayBuffer = event.target.result;
 				var fileData = new Uint8Array(arrayBuffer);
-				var encryptionPromise = encryptFile(fileData).then(function(encrypted_file) {
-					// parameters for `addEventListener` in a *for loop* need a special treatment
-					// the only working solution seems to be: https://stackoverflow.com/a/11986895
-					event.target.attachment_field.value = encrypted_file;
-				});
-				promises.push(encryptionPromise);
+				encryptFile(current_file.name, fileData).then(acceptEncryptedData);
 			});
 			reader.readAsArrayBuffer(current_file);
 		}
-
-		// Wait for all encryption promises to resolve before submitting the form
-		Promise.all(promises).then(() => {
-			// Defer the Promise.all() call to the next event loop iteration to ensure that the DOM is fully updated
-			Promise.resolve().then(() => {
-				encrypt(text.value).then(function(encrypted_msg) {
-					form.elements['message'].value = encrypted_msg;
-					form.elements['recipient'].value = recipient.value;
-					form.submit();
-				});
-			});
-		});
 
 		return true;
 	});
 });
 
-async function encrypt(msg) {
+function getCurrentKey() {
 	var recipient = document.getElementById("recipientSelect");
 	var recipientId = recipient.value; // here we expect one of 4: legal, devcon, esp, security
 	var publicKeyArmored = publicKeys[recipientId];
-	const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
+	return publicKeyArmored;
+}
+
+async function encrypt(msg) {
+	const publicKey = await openpgp.readKey({ armoredKey: getCurrentKey() });
 	const encrypted = await openpgp.encrypt({
 		message: await openpgp.createMessage({ text: msg }),
 		encryptionKeys: publicKey
 	});
-	encryptedFixed = encrypted.replace(/\n/g, "<br />");
-	return encryptedFixed;
+
+	// encryptedFixed = encrypted.replace(/\n/g, "<br />");
+	return { name: 'message', data: encrypted };
 }
 
-async function encryptFile(file) {
-	var recipient = document.getElementById("recipientSelect");
-	var recipientId = recipient.value;
-	var publicKeyArmored = publicKeys[recipientId];
-	const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
-	const message = await openpgp.createMessage({ binary: file });
-	const encrypted = openpgp.encrypt({
-		message,
+async function encryptFile(filename, file) {
+	const publicKey = await openpgp.readKey({ armoredKey: getCurrentKey() });
+	const encrypted = await openpgp.encrypt({
+		message: await openpgp.createMessage({ binary: file }),
 		encryptionKeys: publicKey,
 		format: 'armored'
 	});
-	return encrypted;
+
+	return { name: filename, data: encrypted };
 }
 
-function enableBtn(){
-   document.getElementById("button").disabled = false;
+// var gRecaptchaResponse = null;
+function captchaSolved(recaptchaResponse) {
+	// gRecaptchaResponse = recaptchaResponse;
+	document.getElementById("button").disabled = false;
+}
+
+function captchaExpired() {
+	// gRecaptchaResponse = null;
+	document.getElementById("button").disabled = true;
+}
+
+async function postData(url = '/', data = {}) {
+	const response = await fetch(url, {
+	  method: 'POST',
+	  headers: {
+		'Content-Type': 'application/json'
+	  },
+	  body: JSON.stringify(data)
+	});
+	return response.json();
+}
+  
+function displayResult(status, message) {
+	const formElement = document.getElementById("submission-form");
+	const statusText = (status == "success") ? "Success!" : "Error";
+	formElement.innerHTML = `<fieldset><legend>${statusText}</legend><span class='pure-form-message'>${message}<br><br></span></fieldset>`
 }
