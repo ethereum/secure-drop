@@ -23,6 +23,7 @@
 				<option value="devcon">Devcon</option>
 				<option value="esp">ESP</option>
 				<option value="security">Security</option>
+				{% if 0 %}<option value="oleh">Oleh</option>{% endif %}
 			</select>
 			<br>
 			<label id="messageLabel" for="text">Message:</label>
@@ -32,15 +33,6 @@
 
 			<button id="add-file-button" type="button" class="pure-button">Add file</button>
 			<div id="dropzone-area" class="dropzone"></div>
-
-			<textarea id="message" name="message" hidden="true"></textarea>
-			<textarea id="recipientText" name="recipient" hidden="true"></textarea>
-
-			{% for i in range(0, attachments_number) %}
-				<textarea id="attachment-{{ i }}" name="attachment-{{ i }}" hidden="true"></textarea>
-				<textarea id="filename-{{ i }}" name="filename-{{ i }}" hidden="true"></textarea>
-			{% endfor %}
-			<input id="file-count" name="file-count" hidden="true" value="{{ attachments_number }}">
 
 			{% if hascaptcha %}
 			<br />

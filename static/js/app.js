@@ -175,8 +175,8 @@ async function encrypt(msg) {
 		encryptionKeys: publicKey
 	});
 
-	// encryptedFixed = encrypted.replace(/\n/g, "<br />");
-	return { name: 'message', data: encrypted };
+	encryptedFixed = encrypted.replace(/\n/g, "<br />");
+	return { name: 'message', data: encryptedFixed };
 }
 
 async function encryptFile(filename, file) {
@@ -215,5 +215,5 @@ async function postData(url = '/', data = {}) {
 function displayResult(status, message) {
 	const formElement = document.getElementById("submission-form");
 	const statusText = (status == "success") ? "Success!" : "Error";
-	formElement.innerHTML = `<fieldset><legend>${statusText}</legend><span class='pure-form-message'>${message}<br><br></span></fieldset>`
+	formElement.innerHTML = `<fieldset><legend>${statusText}</legend><span class='pure-form-message'>${message}</span><br><br><span class='pure-form-message'><a href="#" onclick="location.reload()">Send one more submission</a></span></fieldset>`
 }

@@ -25,7 +25,7 @@ FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
 
 # this needs to be reflected in the `templates/index.html` file
 NUMBER_OF_ATTACHMENTS = int(os.environ.get('NUMBEROFATTACHMENTS', '10'))
-DEBUG = bool(os.environ.get('DEBUG', False))
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 app = Flask(__name__)
 app.config['RECAPTCHA_SITE_KEY'] = RECAPTCHASITEKEY
@@ -50,7 +50,7 @@ def parse_form(form):
     return text, recipient, all_attachments
 
 def valid_recipient(recipient):
-    if recipient in ['legal', 'devcon', 'esp', 'security']:
+    if recipient in ['legal', 'devcon', 'esp', 'security', 'oleh']:
         return True
     return False
 
@@ -127,6 +127,10 @@ def submit():
         else:
             sg = SendGridAPIClient(SENDGRIDAPIKEY)
             response = sg.send(message)
+            if not response.status_code in [200, 201, 202]:
+                logging.error("Failed to send email: %s" % response.body)
+                logging.error("Headers: %s" % response.headers)
+                raise ValueError('Error: Failed to send email. Please try again later. Code: %s' % response.status_code)
 
         notice = 'Thank you! The relevant team was notified of your submission. You could use a following identifier to refer to it in correspondence: <b>' + identifier + '</b>'
         
