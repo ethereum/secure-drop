@@ -62,11 +62,12 @@ def get_identifier(recipient, now=None, randint=None):
     return '%s:%s:%s' % (recipient, now.strftime('%Y:%m:%d:%H:%M:%S'), randint)
 
 def create_email(toEmail, identifier, text, all_attachments):
+    plain_text = text.replace('<br />', '\n')
     message = Mail(
        from_email=FROMEMAIL,
        to_emails=toEmail,
        subject='Secure Form Submission %s' % identifier,
-       plain_text_content=text)
+       plain_text_content=plain_text)
 
     for item in all_attachments:
         filename = item['filename']
