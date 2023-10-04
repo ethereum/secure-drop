@@ -66,7 +66,7 @@ def create_email(toEmail, identifier, text, all_attachments):
        from_email=FROMEMAIL,
        to_emails=toEmail,
        subject='Secure Form Submission %s' % identifier,
-       html_content=text)
+       plain_text_content=text)
 
     for item in all_attachments:
         filename = item['filename']
@@ -115,6 +115,7 @@ def submit():
         
         toEmail = "kyc@ethereum.org" if recipient == 'legal' else recipient + "@ethereum.org"
         identifier = get_identifier(recipient)
+        # toEmail = "oleh@ethereum.org"
 
         log_data = f"{date} - message to: {recipient}, identifier: {identifier}, length: {message_length}, file count: {file_count}"
         logging.info(log_data)
