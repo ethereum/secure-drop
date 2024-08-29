@@ -33,8 +33,11 @@ app.config['RECAPTCHA_SECRET_KEY'] = RECAPTCHASECRETKEY
 app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024    # 15 Mb limit
 recaptcha = ReCaptcha(app)
 
-app.config['LOG_FILE'] = 'secure-drop.log'
-logging.basicConfig(filename=app.config['LOG_FILE'], level=logging.INFO)
+log_file = os.environ.get('LOG_FILE', '')
+if log_file:
+    logging.basicConfig(filename=log_file, level=logging.INFO)
+else:
+    logging.basicConfig(level=logging.INFO)
 
 def parse_form(form):
     text = form['message']
