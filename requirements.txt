@@ -5,3 +5,4 @@ python-dotenv==0.21.0
 sendgrid==6.9.7
 gunicorn==20.1.0
 Werkzeug==2.2.2
+Flask-Limiter==3.8.0
