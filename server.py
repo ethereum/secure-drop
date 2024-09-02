@@ -78,22 +78,25 @@ def create_email(to_email, identifier, text, all_attachments):
     """
     plain_text = text.replace('<br />', '\n')
     message = Mail(
-        from_email=FROMEMAIL,
-        to_emails=to_email,
-        subject=f'Secure Form Submission {identifier}',
-        plain_text_content=plain_text
-    )
+       from_email=FROMEMAIL,
+       to_emails=to_email,
+       subject=f'Secure Form Submission {identifier}',
+       plain_text_content=plain_text)
 
-    for filename, attachment in all_attachments:
+    for item in all_attachments:
+        filename = item['filename']
+        attachment = item['attachment']
+
         encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
-        attached_file = Attachment(
+        attachedFile = Attachment(
             FileContent(encoded_file),
             FileName(filename + '.pgp'),
             FileType('application/pgp-encrypted'),
             Disposition('attachment')
         )
-        message.add_attachment(attached_file)
+        message.add_attachment(attachedFile)
     return message
+
 
 def validate_recaptcha(recaptcha_response):
     """
