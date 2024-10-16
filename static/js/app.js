@@ -87,9 +87,11 @@ function acceptEncryptedData(data) {
 		console.log('all chunks received, submitting form');
 		const gRecaptchaBlock = document.getElementById('gRecaptcha');
 		const recipient = document.getElementById("recipientSelect");
+		const reference = document.getElementById("reference");
 
 		dataArray['g-recaptcha-response'] = gRecaptchaBlock ? grecaptcha.getResponse() : null;
 		dataArray['recipient'] = recipient.value;
+		dataArray['reference'] = reference.value;
 
 		postData('/submit-encrypted-data', dataArray)
 		.then(response => {

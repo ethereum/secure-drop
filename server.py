@@ -40,10 +40,11 @@ def sanitize_filename(filename):
 
 def parse_form(form):
     """
-    Parses the form data to extract the message, recipient, and attachments.
+    Parses the form data to extract the message, recipient, reference, and attachments.
     """
     text = form['message']
     recipient = form['recipient']
+    reference = form.get('reference', '')
 
     all_attachments = []
     for i in range(Config.NUMBER_OF_ATTACHMENTS):
@@ -53,7 +54,7 @@ def parse_form(form):
             continue
         sanitized_filename = sanitize_filename(filename)
         all_attachments.append((sanitized_filename, attachment))
-    return text, recipient, all_attachments
+    return text, recipient, reference, all_attachments
 
 def valid_recipient(recipient):
     """
@@ -72,15 +73,19 @@ def get_identifier(recipient, now=None, randint=None):
         randint = Random().randint(1000, 9999)
     return f'{recipient}:{now.strftime("%Y:%m:%d:%H:%M:%S")}:{randint}'
 
-def create_email(to_email, identifier, text, all_attachments):
+def create_email(to_email, identifier, text, all_attachments, reference=''):
     """
     Creates an email message with attachments.
     """
     plain_text = text.replace('<br />', '\n')
+    subject = f'Secure Form Submission {identifier}'
+    if reference:
+        subject = f'{reference} {subject}'
+    
     message = Mail(
        from_email=FROMEMAIL,
        to_emails=to_email,
-       subject=f'Secure Form Submission {identifier}',
+       subject=subject,
        plain_text_content=plain_text)
 
     for item in all_attachments:
@@ -156,6 +161,7 @@ def submit():
         # Extract fields from JSON data
         message = data['message']
         recipient = data['recipient']
+        reference = data.get('reference', '')
         files = data['files']
 
         if not message:
@@ -173,9 +179,11 @@ def submit():
         identifier = get_identifier(recipient)
 
         log_data = f"{date} - message to: {recipient}, identifier: {identifier}, length: {message_length}, file count: {file_count}"
+        if reference:
+            log_data += f", reference: {reference}"
         logging.info(log_data)
 
-        message = create_email(to_email, identifier, message, files)
+        message = create_email(to_email, identifier, message, files, reference)
 
         if Config.DEBUG_MODE:
             print(f"Attempt to send email to {to_email}")
