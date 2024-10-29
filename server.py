@@ -107,17 +107,33 @@ def validate_recaptcha(recaptcha_response):
     """
     Validates the ReCaptcha response.
     """
-    if not recaptcha.verify(response=recaptcha_response):
-        raise ValueError('Error: ReCaptcha verification failed!')
+    try:
+        if not recaptcha.verify(response=recaptcha_response):
+            logging.error('ReCaptcha verification failed for response: %s', recaptcha_response)
+            raise ValueError('Error: ReCaptcha verification failed!')
+        else:
+            logging.info('ReCaptcha verification succeeded')
+    except Exception as e:
+        logging.error('ReCaptcha validation encountered an error: %s', str(e))
+        raise
 
 def send_email(message):
     """
-    Sends the email using SendGrid.
+    Sends the email using SendGrid and logs detailed information for debugging.
     """
-    sg = SendGridAPIClient(SENDGRIDAPIKEY)
-    response = sg.send(message)
-    if response.status_code not in [200, 201, 202]:
-        raise ValueError(f"Error: Failed to send email. Status code: {response.status_code}")
+    try:
+        sg = SendGridAPIClient(SENDGRIDAPIKEY)
+        response = sg.send(message)
+        logging.info('SendGrid response status code: %s', response.status_code)
+        if response.status_code not in [200, 201, 202]:
+            logging.error('SendGrid failed with status code: %s, response body: %s', response.status_code, response.body)
+            raise ValueError(f"Error: Failed to send email. Status code: {response.status_code}, body: {response.body}")
+        else:
+            logging.info('Email sent successfully. Status code: %s, response body: %s', response.status_code, response.body)
+    except Exception as e:
+        logging.error('Error sending email via SendGrid: %s', str(e))
+        raise
+
 
 # Validate required environment variables
 required_env_vars = ['RECAPTCHASITEKEY', 'RECAPTCHASECRETKEY', 'SENDGRIDAPIKEY', 'SENDGRIDFROMEMAIL']
