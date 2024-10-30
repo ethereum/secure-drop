@@ -204,6 +204,7 @@ def submit():
         if Config.DEBUG_MODE:
             print(f"Attempt to send email to {to_email}")
             print(message.get())
+            send_email(message)
         else:
             send_email(message)
 
