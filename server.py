@@ -81,7 +81,7 @@ def create_email(to_email, identifier, text, all_attachments, reference=''):
     subject = f'Secure Form Submission {identifier}'
     if reference:
         subject = f'{reference} {subject}'
-    
+
     message = Mail(
        from_email=FROMEMAIL,
        to_emails=to_email,
@@ -108,14 +108,20 @@ def validate_recaptcha(recaptcha_response):
     Validates the ReCaptcha response.
     """
     try:
+        if not recaptcha_response:
+            logging.error('No ReCaptcha response provided.')
+            raise ValueError('ReCaptcha verification failed: No response provided.')
+
+        # Perform the verification
         if not recaptcha.verify(response=recaptcha_response):
             logging.error('ReCaptcha verification failed for response: %s', recaptcha_response)
-            raise ValueError('Error: ReCaptcha verification failed!')
-        else:
-            logging.info('ReCaptcha verification succeeded')
+            raise ValueError('ReCaptcha verification failed.')
+
+        logging.info('ReCaptcha verification succeeded for response: %s', recaptcha_response)
     except Exception as e:
-        logging.error('ReCaptcha validation encountered an error: %s', str(e))
+        logging.error('Error during ReCaptcha validation: %s', str(e))
         raise
+
 
 def send_email(message):
     """
@@ -163,6 +169,7 @@ else:
 def index():
     return render_template('index.html', notice='', hascaptcha=not Config.DEBUG_MODE, attachments_number=Config.NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
 
+
 @app.route('/submit-encrypted-data', methods=['POST'])
 @limiter.limit("5 per minute")
 def submit():
@@ -172,7 +179,11 @@ def submit():
 
         # Validate ReCaptcha unless in debug mode
         if not Config.DEBUG_MODE:
-            validate_recaptcha(data['g-recaptcha-response'])
+            recaptcha_response = data.get('g-recaptcha-response', '')
+            try:
+                validate_recaptcha(recaptcha_response)
+            except ValueError as e:
+                return jsonify({'status': 'failure', 'message': str(e)}), 400
 
         # Extract fields from JSON data
         message = data['message']
@@ -218,6 +229,7 @@ def submit():
         error_message = "An unexpected error occurred. Please try again later."
         logging.error(f"Internal error: {str(e)}")
         return jsonify({'status': 'failure', 'message': error_message})
+
 
 @app.errorhandler(413)
 def error413(e):
