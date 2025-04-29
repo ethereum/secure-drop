@@ -138,6 +138,22 @@ def send_email(message):
         logging.error('Error sending email via SendGrid: %s', str(e))
         raise
 
+
+def get_forwarded_address():
+    # Check X-Forwarded-For header first
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        # Return the leftmost IP which is the original client IP
+        return forwarded_for.split(',')[0].strip()
+    
+    # Fall back to X-Real-IP if available
+    real_ip = request.headers.get('X-Real-IP')
+    if real_ip:
+        return real_ip
+    
+    # Otherwise use the default function
+    return get_remote_address()
+
 # Validate required environment variables
 required_env_vars = ['RECAPTCHASITEKEY', 'RECAPTCHASECRETKEY', 'SENDGRIDAPIKEY', 'SENDGRIDFROMEMAIL']
 validate_env_vars(required_env_vars)
@@ -150,8 +166,10 @@ FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
 app = Flask(__name__)
 app.config.from_object(Config)
 
+
+
 # Initialize rate limiting
-limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"])
+limiter = Limiter(get_forwarded_address, app=app, default_limits=["200 per day", "50 per hour"])
 
 # Configure logging
 log_file = os.environ.get('LOG_FILE', '')
