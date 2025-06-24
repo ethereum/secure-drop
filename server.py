@@ -9,8 +9,8 @@ from flask import Flask, render_template, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
+import boto3
+from botocore.exceptions import ClientError
 
 from dotenv import load_dotenv
 
@@ -74,32 +74,42 @@ def get_identifier(recipient, now=None, randint=None):
 
 def create_email(to_email, identifier, text, all_attachments, reference=''):
     """
-    Creates an email message with attachments.
+    Creates an email message with attachments for AWS SES.
     """
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+    
     plain_text = text.replace('<br />', '\n')
     subject = f'Secure Form Submission {identifier}'
     if reference:
         subject = f'{reference} {subject}'
     
-    message = Mail(
-       from_email=FROMEMAIL,
-       to_emails=to_email,
-       subject=subject,
-       plain_text_content=plain_text)
-
+    # Create message container
+    msg = MIMEMultipart()
+    msg['Subject'] = subject
+    msg['From'] = FROMEMAIL
+    msg['To'] = to_email
+    
+    # Add body to email
+    body = MIMEText(plain_text, 'plain')
+    msg.attach(body)
+    
+    # Add attachments
     for item in all_attachments:
         filename = item['filename']
-        attachment = item['attachment']
-
-        encoded_file = base64.b64encode(attachment.encode("utf-8")).decode()
-        attachedFile = Attachment(
-            FileContent(encoded_file),
-            FileName(filename + '.pgp'),
-            FileType('application/pgp-encrypted'),
-            Disposition('attachment')
+        attachment_content = item['attachment']
+        
+        # Create attachment
+        part = MIMEApplication(attachment_content.encode('utf-8'))
+        part.add_header(
+            'Content-Disposition',
+            'attachment',
+            filename=f'{filename}.pgp'
         )
-        message.add_attachment(attachedFile)
-    return message
+        msg.attach(part)
+    
+    return msg
 
 def validate_recaptcha(recaptcha_response):
     """
@@ -125,17 +135,39 @@ def validate_recaptcha(recaptcha_response):
 
 def send_email(message):
     """
-    Sends the email using SendGrid and logs detailed information for debugging.
+    Sends the email using AWS SES and logs detailed information for debugging.
     """
     try:
-        sg = SendGridAPIClient(SENDGRIDAPIKEY)
-        response = sg.send(message)
-        logging.info('SendGrid response status code: %s', response.status_code)
-        if response.status_code not in [200, 201, 202]:
-            logging.error('SendGrid failed with status code: %s, response body: %s', response.status_code, response.body)
-            raise ValueError(f"Error: Failed to send email. Status code: {response.status_code}, body: {response.body}")
+        # Send the email
+        response = ses_client.send_raw_email(
+            Source=message['From'],
+            Destinations=[message['To']],
+            RawMessage={
+                'Data': message.as_string()
+            }
+        )
+        
+        # Log the response
+        message_id = response['MessageId']
+        logging.info('AWS SES email sent successfully. MessageId: %s', message_id)
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logging.error('AWS SES error: Code=%s, Message=%s', error_code, error_message)
+        
+        # Provide user-friendly error messages
+        if error_code == 'MessageRejected':
+            raise ValueError('Error: Email was rejected by AWS SES. Please check the email configuration.')
+        elif error_code == 'MailFromDomainNotVerified':
+            raise ValueError('Error: The sender email domain is not verified in AWS SES.')
+        elif error_code == 'ConfigurationSetDoesNotExist':
+            raise ValueError('Error: AWS SES configuration error.')
+        else:
+            raise ValueError(f'Error: Failed to send email. {error_message}')
+            
     except Exception as e:
-        logging.error('Error sending email via SendGrid: %s', str(e))
+        logging.error('Error sending email via AWS SES: %s', str(e))
         raise
 
 
@@ -155,13 +187,23 @@ def get_forwarded_address():
     return get_remote_address()
 
 # Validate required environment variables
-required_env_vars = ['RECAPTCHASITEKEY', 'RECAPTCHASECRETKEY', 'SENDGRIDAPIKEY', 'SENDGRIDFROMEMAIL']
+required_env_vars = ['RECAPTCHASITEKEY', 'RECAPTCHASECRETKEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL']
 validate_env_vars(required_env_vars)
 
 RECAPTCHASITEKEY = os.environ['RECAPTCHASITEKEY']
 RECAPTCHASECRETKEY = os.environ['RECAPTCHASECRETKEY']
-SENDGRIDAPIKEY = os.environ['SENDGRIDAPIKEY']
-FROMEMAIL = os.environ['SENDGRIDFROMEMAIL']
+AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
+AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
+AWS_REGION = os.environ['AWS_REGION']
+FROMEMAIL = os.environ['SES_FROM_EMAIL']
+
+# Initialize AWS SES client
+ses_client = boto3.client(
+    'ses',
+    region_name=AWS_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
 
 app = Flask(__name__)
 app.config.from_object(Config)
