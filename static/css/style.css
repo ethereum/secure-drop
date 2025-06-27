@@ -10,3 +10,73 @@ textarea#text { width: 760px; height: 200px; }
 #add-file-button { margin-bottom: 15px; background-color: green; color: white; }
 .dropzone .dz-progress { display: none; }
 .dropzone .dz-preview .dz-remove { margin-top: 15px; color: #b70d0d; }
+
+/* Success message styling */
+.pure-form-message.success-message {
+    color: #1b1b1b; /* Black text instead of gray */
+}
+
+/* Legal identifier styling */
+.legal-identifier {
+    display: inline-block;
+    background-color: #f0f0f0;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 18px;
+    margin-left: 4px;
+    color: #000;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    user-select: all; /* Makes it easy to select the entire identifier */
+}
+
+.legal-identifier:hover {
+    background-color: #e8e8e8;
+    border-color: #b0b0b0;
+}
+
+/* Error message styling */
+.error-message {
+    background-color: #fee;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    color: #c00;
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+.error-message:before {
+    content: "⚠ ";
+    font-size: 20px;
+    vertical-align: middle;
+}
+
+/* Required field indicator */
+.required {
+    color: #c00;
+    font-weight: bold;
+}
+
+/* Reference help text styling */
+.reference-help {
+    display: block;
+    margin-top: 5px;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* Reference container styling */
+#referenceContainer {
+    margin-bottom: 10px;
+}
+
+/* Reference input field styling */
+#reference {
+    width: 100%;
+    min-width: 300px;
+}

@@ -1,5 +1,29 @@
+// Function to display error messages
+function showError(message) {
+	const errorDiv = document.getElementById('error-message');
+	if (errorDiv) {
+		errorDiv.innerHTML = message;
+		errorDiv.style.display = 'block';
+		// Auto-hide after 10 seconds
+		setTimeout(() => {
+			errorDiv.style.display = 'none';
+		}, 10000);
+	} else {
+		// Fallback to alert if error div doesn't exist
+		alert(message);
+	}
+}
+
+// Function to hide error messages
+function hideError() {
+	const errorDiv = document.getElementById('error-message');
+	if (errorDiv) {
+		errorDiv.style.display = 'none';
+	}
+}
+
 Dropzone.options.dropzoneArea = {
-	maxFilesize: 5, // Max file size per file
+	maxFilesize: 15, // Max file size per file in MB
 	maxFiles: 10, // Max number of files
 	url: '/fake',
 	paramName: 'attachment',
@@ -8,28 +32,52 @@ Dropzone.options.dropzoneArea = {
 	addRemoveLinks: true,
 	uploadMultiple: true,
 	dictDefaultMessage: 'You may drop files here to upload',
+	dictFileTooBig: 'File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.',
+	dictMaxFilesExceeded: 'You can only upload a maximum of {{maxFiles}} files.',
 	init: function() {
+		var dropzone = this;
+		
 		this.on("addedfile", function(file) {
-		  // Calculate the total added file size
-		  var totalSize = this.files.reduce(function(total, f) {
-			return total + f.size;
-		  }, 0);
-		  
-		  // If the total added file size is greater than 15 MB, remove the file
-		  if (totalSize > 15 * 1024 * 1024) {
+			hideError(); // Clear any existing errors
+			
+			// Check individual file size
+			if (file.size > 15 * 1024 * 1024) {
+				this.removeFile(file);
+				showError(`Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 15MB.`);
+				return;
+			}
+			
+			// Calculate the total added file size
+			var totalSize = this.files.reduce(function(total, f) {
+				return total + f.size;
+			}, 0);
+			
+			// If the total added file size is greater than 15 MB, remove the file
+			if (totalSize > 15 * 1024 * 1024) {
+				this.removeFile(file);
+				showError(`Error: Total file size would exceed the 15MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+			}
+		});
+		
+		this.on("maxfilesexceeded", function(file) {
 			this.removeFile(file);
-			alert("Total file size exceeded the limit of 15 MB, file cannot be added.");
-		  }
+			showError(`Error: You can only upload a maximum of ${this.options.maxFiles} files.`);
 		});
 		
 		this.on("removedfile", function(file) {
-		  // Calculate the total added file size
-		  var totalSize = this.files.reduce(function(total, f) {
-			return total + f.size;
-		  }, 0);
-		  
-		  // Log the total added file size
-		  console.log("Total file size: " + totalSize);
+			hideError(); // Clear errors when file is removed
+			// Calculate the total added file size
+			var totalSize = this.files.reduce(function(total, f) {
+				return total + f.size;
+			}, 0);
+			
+			// Log the total added file size
+			console.log("Total file size: " + (totalSize / 1024 / 1024).toFixed(2) + "MB");
+		});
+		
+		this.on("error", function(file, errorMessage) {
+			this.removeFile(file);
+			showError(`Error: ${errorMessage}`);
 		});
 	}
 };
@@ -43,33 +91,57 @@ function initDropzone() {
 		addRemoveLinks: true,
 		uploadMultiple: true,
 		dictDefaultMessage: 'You may drop files here to upload',
-		maxFilesize: 15, // Max file size per file
+		dictFileTooBig: 'File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.',
+		dictMaxFilesExceeded: 'You can only upload a maximum of {{maxFiles}} files.',
+		maxFilesize: 15, // Max file size per file in MB
 		maxFiles: 10, // Max number of files
 		init: function() {
-		  this.on("addedfile", function(file) {
-			// Calculate the total added file size
-			var totalSize = this.files.reduce(function(total, f) {
-			  return total + f.size;
-			}, 0);
+			var dropzone = this;
 			
-			// If the total added file size is greater than 15 MB, remove the file
-			if (totalSize > 15 * 1024 * 1024) {
-			  this.removeFile(file);
-			  alert("Total file size exceeded the limit of 15 MB.");
-			}
-		  });
-		  
-		  this.on("removedfile", function(file) {
-			// Calculate the total added file size
-			var totalSize = this.files.reduce(function(total, f) {
-			  return total + f.size;
-			}, 0);
+			this.on("addedfile", function(file) {
+				hideError(); // Clear any existing errors
+				
+				// Check individual file size
+				if (file.size > 15 * 1024 * 1024) {
+					this.removeFile(file);
+					showError(`Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 15MB.`);
+					return;
+				}
+				
+				// Calculate the total added file size
+				var totalSize = this.files.reduce(function(total, f) {
+					return total + f.size;
+				}, 0);
+				
+				// If the total added file size is greater than 15 MB, remove the file
+				if (totalSize > 15 * 1024 * 1024) {
+					this.removeFile(file);
+					showError(`Error: Total file size would exceed the 15MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+				}
+			});
 			
-			// Log the total added file size
-			console.log("Total file size: " + totalSize);
-		  });
+			this.on("maxfilesexceeded", function(file) {
+				this.removeFile(file);
+				showError(`Error: You can only upload a maximum of ${this.options.maxFiles} files.`);
+			});
+			
+			this.on("removedfile", function(file) {
+				hideError(); // Clear errors when file is removed
+				// Calculate the total added file size
+				var totalSize = this.files.reduce(function(total, f) {
+					return total + f.size;
+				}, 0);
+				
+				// Log the total added file size
+				console.log("Total file size: " + (totalSize / 1024 / 1024).toFixed(2) + "MB");
+			});
+			
+			this.on("error", function(file, errorMessage) {
+				this.removeFile(file);
+				showError(`Error: ${errorMessage}`);
+			});
 		}
-	  });
+	});
 }
 
 
@@ -122,10 +194,25 @@ document.addEventListener('DOMContentLoaded', function() {
 		recipientLabel.style.visibility = 'hidden';
 	};
 
-	// Custom text for ESP recipient only
+	// Handle reference field visibility based on recipient
 	recipient.addEventListener("change", function() {
-		messageLabel.innerHTML = (recipient.value == "esp") ? "Please include Grant ID in the message. Example: \"FY22-0123\":" : "Message:";
+		const referenceContainer = document.getElementById("referenceContainer");
+		const referenceInput = document.getElementById("reference");
+		
+		if (recipient.value === "security") {
+			// Hide reference field for Security
+			referenceContainer.style.display = "none";
+			referenceInput.removeAttribute("required");
+			referenceInput.value = ""; // Clear the value
+		} else {
+			// Show reference field for Legal and Devcon
+			referenceContainer.style.display = "block";
+			referenceInput.setAttribute("required", "required");
+		}
 	});
+	
+	// Trigger change event on page load to set initial state
+	recipient.dispatchEvent(new Event('change'));
 
 	// Redirect clicks on a greed button
 	const addFileButton = document.getElementById('add-file-button');
@@ -140,9 +227,46 @@ document.addEventListener('DOMContentLoaded', function() {
 	// Multi file upload meets encryption
 	document.forms[0].addEventListener("submit", function(evt) {
 		evt.preventDefault();
+		hideError(); // Clear any existing errors
+		
+		// Validate form before submission
+		const selectedFiles = Dropzone.instances[0].files || [];
+		
+		// Check if reference is required and empty
+		const referenceInput = document.getElementById("reference");
+		const recipient = document.getElementById("recipientSelect");
+		if (recipient.value !== "security" && !referenceInput.value.trim()) {
+			showError("Error: Please enter a Reference ID before submitting.");
+			referenceInput.focus();
+			return false;
+		}
+		
+		// Check number of files
+		if (selectedFiles.length > 10) {
+			showError(`Error: Too many files selected. You can only upload a maximum of 10 files. Currently selected: ${selectedFiles.length}`);
+			return false;
+		}
+		
+		// Check total file size
+		const totalSize = selectedFiles.reduce(function(total, file) {
+			return total + file.size;
+		}, 0);
+		
+		if (totalSize > 15 * 1024 * 1024) {
+			showError(`Error: Total file size exceeds the 15MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+			return false;
+		}
+		
+		// Check individual file sizes
+		for (let i = 0; i < selectedFiles.length; i++) {
+			if (selectedFiles[i].size > 15 * 1024 * 1024) {
+				showError(`Error: File "${selectedFiles[i].name}" is too large (${(selectedFiles[i].size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 15MB.`);
+				return false;
+			}
+		}
+		
 		captchaExpired(); // disable the submit button this way to prevent double submission
 		
-		const selectedFiles = Dropzone.instances[0].files || [];
 		dataArray = { message: '', files: [], requiredChunks: selectedFiles.length+1, receivedChunks: 0 };
 
 		encrypt(text.value).then(acceptEncryptedData);
@@ -217,5 +341,17 @@ async function postData(url = '/', data = {}) {
 function displayResult(status, message) {
 	const formElement = document.getElementById("submission-form");
 	const statusText = (status == "success") ? "Success!" : "Error";
-	formElement.innerHTML = `<fieldset><legend>${statusText}</legend><span class='pure-form-message'>${message}</span><br><br><span class='pure-form-message'><a href="#" onclick="location.reload()">Send one more submission</a></span></fieldset>`
+	
+	// If success message, format the identifier specially
+	if (status === "success" && message.includes("Please record the identifier")) {
+		// Extract the identifier (format: recipient:YYYY:MM:DD:HH:MM:SS:XXXX)
+		const identifierMatch = message.match(/([a-zA-Z]+:\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}:\d{4})$/);
+		if (identifierMatch) {
+			const identifier = identifierMatch[1];
+			const messageWithoutId = message.substring(0, message.lastIndexOf(identifier)).trim();
+			message = `${messageWithoutId} <span class="legal-identifier">${identifier}</span>`;
+		}
+	}
+	
+	formElement.innerHTML = `<fieldset><legend>${statusText}</legend><span class='pure-form-message ${status === "success" ? "success-message" : ""}'>${message}</span><br><br><span class='pure-form-message'><a href="#" onclick="location.reload()">Send one more submission</a></span></fieldset>`
 }

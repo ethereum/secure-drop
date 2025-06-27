@@ -59,7 +59,7 @@ def valid_recipient(recipient):
     """
     Checks if the recipient is valid.
     """
-    valid_recipients = ['legal', 'devcon', 'esp', 'security', 'oleh']
+    valid_recipients = ['legal', 'devcon', 'security']
     return recipient in valid_recipients
 
 def get_identifier(recipient, now=None, randint=None):
@@ -247,9 +247,6 @@ def submit():
         reference = data.get('reference', '')
         files = data['files']
 
-        if not message:
-            raise ValueError('Error: empty message!')
-
         if not valid_recipient(recipient):
             raise ValueError('Error: Invalid recipient!')
 
@@ -269,7 +266,7 @@ def submit():
 
         send_email(message)
 
-        notice = f'Thank you! The relevant team was notified of your submission. You could use the following identifier to refer to it in correspondence: <b>{identifier}</b>'
+        notice = f'Thank you! The relevant team was notified of your submission. Please record the identifier and refer to it in correspondence: {identifier}'
 
         return jsonify({'status': 'success', 'message': notice})
 

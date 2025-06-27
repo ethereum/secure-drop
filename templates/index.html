@@ -15,26 +15,28 @@
 			<legend>Secure Submission Form</legend>
 			<span class="pure-form-message">
 				Please use this form when instructed by a member of the Ethereum Foundation to securely submit documents. You can submit any kind of files and an accompanying message.<br><br>
-				Your files and message will be strongly encrypted before leaving your device, and you will receive an ID unique to your submission. You may record this ID as it's not a secret, and you can use it to refer to the submission in future correspondence.<br><br>
+				Your files and message will be strongly encrypted before leaving your device, and you will receive a unique ID for your submission. Remember: Record this ID. It is not a secret, and use it to refer to the submission in future correspondence.<br><br>
 			</span>
 			<label id="recipientLabel" for="recipient">Recipient team:</label>
 			<select id="recipientSelect" required>
 				<option value="legal" selected>Legal</option>
 				<option value="devcon">Devcon</option>
-				<option value="esp">ESP</option>
 				<option value="security">Security</option>
-				{% if 0 %}<option value="oleh">Oleh</option>{% endif %}
 			</select>
 			<br>
-			<label id="referenceLabel" for="reference">Reference (optional):</label>
-			<input id="reference" name="reference" type="text" placeholder="Example: FY24-XXXX">
+			<div id="referenceContainer">
+				<label id="referenceLabel" for="reference">Reference ID: <span class="required">*</span></label>
+				<input id="reference" name="reference" type="text" placeholder="Examples: FY00-1234, EXP12345, AOC000, HAT1234" required>
+				<span class="pure-form-message reference-help">This is the ID provided to you by a member of the Ethereum Foundation. If you're unsure which ID to use, please reach out to your contact.</span>
+			</div>
 			<br>
-			<label id="messageLabel" for="text">Message:</label>
-			<textarea id="text" name="text" type="text" placeholder="Write a message. Please mention your name or email and short description of the file contents."></textarea>
+			<label id="messageLabel" for="text">Additional Information:</label>
+			<textarea id="text" name="text" type="text" placeholder="Please include any additional information that we should know about this submission."></textarea>
 			<br>
-			<label for="file-selector">The encrypted container that would be sent with the message (15Mb limit):</label>
+			<label for="file-selector">The encrypted container that will be sent with your message. You may upload multiple files, up to a 15MB limit:</label>
 
 			<button id="add-file-button" type="button" class="pure-button">Add file</button>
+			<div id="error-message" class="error-message" style="display: none;"></div>
 			<div id="dropzone-area" class="dropzone"></div>
 
 			{% if hascaptcha %}
