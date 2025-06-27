@@ -18,14 +18,28 @@ Docker Compose.
 
 ### Third Party Services
 
-* Sendgrid
-* Google reCAPTCHA
+* AWS SES (for email delivery)
+* Cloudflare Turnstile (for bot protection)
+* Kissflow API (optional - for KYC submission tracking)
 
 
 ## New setup
 
 Make a fork of the repository. Set environment variables in `.env` file, using the provided example. Customise the templates and code. Update public keys in [static/js/public-keys.js](static/js/public-keys.js). Deploy to your web server or K8s cluster.
 
+### Kissflow Integration (Optional)
+
+The application now supports automatic integration with Kissflow for KYC submission tracking. When enabled, legal submissions with a Grant ID will automatically update the corresponding AOG (Approval of Grants) item in Kissflow with the submission identifier.
+
+To enable Kissflow integration:
+1. Add the following to your `.env` file:
+   ```
+   KISSFLOW_API_KEY=your_api_key
+   KISSFLOW_ACCOUNT_ID=your_account_id
+   KISSFLOW_PROCESS_ID=your_aog_process_id
+   ```
+2. Ensure your Kissflow API has permissions to read and update AOG items
+3. Test the integration using `python test_kissflow_integration.py`
 
 ## Security
 

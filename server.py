@@ -4,6 +4,7 @@ from datetime import datetime
 from random import Random
 import requests
 import base64
+import json
 
 from flask import Flask, render_template, request, jsonify
 from flask_limiter import Limiter
@@ -184,6 +185,108 @@ def get_forwarded_address():
     # Otherwise use the default function
     return get_remote_address()
 
+def find_aog_item_by_grant_id(grant_id):
+    """
+    Finds an AOG (Approval of Grants) item in Kissflow by Grant ID.
+    Returns the item ID if found, None otherwise.
+    """
+    try:
+        api_key = os.getenv('KISSFLOW_API_KEY')
+        account_id = os.getenv('KISSFLOW_ACCOUNT_ID')
+        process_id = os.getenv('KISSFLOW_PROCESS_ID')
+        
+        if not all([api_key, account_id, process_id]):
+            logging.error("Missing Kissflow configuration")
+            return None
+        
+        # Kissflow API endpoint to search for items
+        url = f"https://api.kissflow.com/api/v1/accounts/{account_id}/processes/{process_id}/items"
+        
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Search for items with matching Grant ID in Request_number field
+        params = {
+            'filter': f'Request_number eq "{grant_id}"',
+            'limit': 1
+        }
+        
+        response = requests.get(url, headers=headers, params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get('data', [])
+            if items:
+                return items[0].get('_id')
+        else:
+            logging.error(f"Kissflow API error: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        logging.error(f"Error finding AOG item: {str(e)}")
+    
+    return None
+
+def update_aog_kyc_comments(item_id, legal_identifier):
+    """
+    Updates the KYC_Comments field in a Kissflow AOG item with the legal identifier.
+    """
+    try:
+        api_key = os.getenv('KISSFLOW_API_KEY')
+        account_id = os.getenv('KISSFLOW_ACCOUNT_ID')
+        process_id = os.getenv('KISSFLOW_PROCESS_ID')
+        
+        if not all([api_key, account_id, process_id]):
+            logging.error("Missing Kissflow configuration")
+            return False
+        
+        # Kissflow API endpoint to update an item
+        url = f"https://api.kissflow.com/api/v1/accounts/{account_id}/processes/{process_id}/items/{item_id}"
+        
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Update the KYC_Comments field
+        payload = {
+            'KYC_Comments': legal_identifier
+        }
+        
+        response = requests.patch(url, headers=headers, json=payload)
+        
+        if response.status_code in [200, 204]:
+            logging.info(f"Successfully updated AOG item {item_id} with legal identifier {legal_identifier}")
+            return True
+        else:
+            logging.error(f"Kissflow API error: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        logging.error(f"Error updating AOG item: {str(e)}")
+    
+    return False
+
+def send_identifier_to_kissflow(grant_id, legal_identifier):
+    """
+    Sends the legal identifier to the Kissflow AOG item based on Grant ID.
+    """
+    if not grant_id:
+        logging.warning("No Grant ID provided, skipping Kissflow update")
+        return False
+    
+    # Find the AOG item by Grant ID
+    item_id = find_aog_item_by_grant_id(grant_id)
+    
+    if not item_id:
+        logging.warning(f"No AOG item found for Grant ID: {grant_id}")
+        return False
+    
+    # Update the KYC_Comments field
+    success = update_aog_kyc_comments(item_id, legal_identifier)
+    
+    return success
+
 # Validate required environment variables
 required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL']
 validate_env_vars(required_env_vars)
@@ -263,6 +366,16 @@ def submit():
         message = create_email(to_email, identifier, message, files, reference)
 
         send_email(message)
+
+        # If this is a legal submission with a Grant ID (reference), send to Kissflow
+        if recipient == 'legal' and reference:
+            kissflow_success = send_identifier_to_kissflow(reference, identifier)
+            if kissflow_success:
+                logging.info(f"Successfully sent identifier {identifier} to Kissflow for Grant ID {reference}")
+            else:
+                logging.warning(f"Failed to send identifier {identifier} to Kissflow for Grant ID {reference}")
+                # Note: We don't fail the submission if Kissflow update fails
+                # The email has already been sent successfully
 
         notice = f'Thank you! The relevant team was notified of your submission. Please record the identifier and refer to it in correspondence: {identifier}'
 
