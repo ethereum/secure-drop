@@ -191,20 +191,24 @@ def find_aog_item_by_grant_id(grant_id):
     Returns the item ID if found, None otherwise.
     """
     try:
-        api_key = os.getenv('KISSFLOW_API_KEY')
+        subdomain = os.getenv('KISSFLOW_SUBDOMAIN', 'ethereum')
+        access_key_id = os.getenv('KISSFLOW_ACCESS_KEY_ID')
+        access_key_secret = os.getenv('KISSFLOW_ACCESS_KEY_SECRET')
         account_id = os.getenv('KISSFLOW_ACCOUNT_ID')
         process_id = os.getenv('KISSFLOW_PROCESS_ID')
         
-        if not all([api_key, account_id, process_id]):
+        if not all([access_key_id, access_key_secret, account_id, process_id]):
             logging.error("Missing Kissflow configuration")
             return None
         
         # Kissflow API endpoint to search for items
-        url = f"https://api.kissflow.com/api/v1/accounts/{account_id}/processes/{process_id}/items"
+        url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/{process_id}/items"
         
         headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Access-Key-Id': access_key_id,
+            'X-Access-Key-Secret': access_key_secret
         }
         
         # Search for items with matching Grant ID in Request_number field
@@ -233,20 +237,24 @@ def update_aog_kyc_comments(item_id, legal_identifier):
     Updates the KYC_Comments field in a Kissflow AOG item with the legal identifier.
     """
     try:
-        api_key = os.getenv('KISSFLOW_API_KEY')
+        subdomain = os.getenv('KISSFLOW_SUBDOMAIN', 'ethereum')
+        access_key_id = os.getenv('KISSFLOW_ACCESS_KEY_ID')
+        access_key_secret = os.getenv('KISSFLOW_ACCESS_KEY_SECRET')
         account_id = os.getenv('KISSFLOW_ACCOUNT_ID')
         process_id = os.getenv('KISSFLOW_PROCESS_ID')
         
-        if not all([api_key, account_id, process_id]):
+        if not all([access_key_id, access_key_secret, account_id, process_id]):
             logging.error("Missing Kissflow configuration")
             return False
         
         # Kissflow API endpoint to update an item
-        url = f"https://api.kissflow.com/api/v1/accounts/{account_id}/processes/{process_id}/items/{item_id}"
+        url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/{process_id}/items/{item_id}"
         
         headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Access-Key-Id': access_key_id,
+            'X-Access-Key-Secret': access_key_secret
         }
         
         # Update the KYC_Comments field

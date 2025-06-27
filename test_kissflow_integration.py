@@ -28,14 +28,17 @@ def test_environment_variables():
     """Test that all required Kissflow environment variables are set"""
     print("Testing environment variables...")
     
-    required_vars = ['KISSFLOW_API_KEY', 'KISSFLOW_ACCOUNT_ID', 'KISSFLOW_PROCESS_ID']
+    required_vars = ['KISSFLOW_SUBDOMAIN', 'KISSFLOW_ACCESS_KEY_ID', 'KISSFLOW_ACCESS_KEY_SECRET', 'KISSFLOW_ACCOUNT_ID', 'KISSFLOW_PROCESS_ID']
     missing_vars = []
     
     for var in required_vars:
         value = os.getenv(var)
         if value:
-            # Mask the value for security
-            masked_value = value[:4] + '...' + value[-4:] if len(value) > 8 else '***'
+            # Mask the value for security (except subdomain)
+            if var == 'KISSFLOW_SUBDOMAIN':
+                masked_value = value
+            else:
+                masked_value = value[:4] + '...' + value[-4:] if len(value) > 8 else '***'
             print(f"✓ {var}: {masked_value}")
         else:
             print(f"✗ {var}: NOT SET")

@@ -34,7 +34,9 @@ The application now supports automatic integration with Kissflow for KYC submiss
 To enable Kissflow integration:
 1. Add the following to your `.env` file:
    ```
-   KISSFLOW_API_KEY=your_api_key
+   KISSFLOW_SUBDOMAIN=ethereum
+   KISSFLOW_ACCESS_KEY_ID=your_access_key_id
+   KISSFLOW_ACCESS_KEY_SECRET=your_access_key_secret
    KISSFLOW_ACCOUNT_ID=your_account_id
    KISSFLOW_PROCESS_ID=your_aog_process_id
    ```
