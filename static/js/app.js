@@ -157,11 +157,11 @@ function acceptEncryptedData(data) {
 
 	if (dataArray.receivedChunks == dataArray.requiredChunks) {
 		console.log('all chunks received, submitting form');
-		const gRecaptchaBlock = document.getElementById('gRecaptcha');
+		const cfTurnstileBlock = document.getElementById('cfTurnstile');
 		const recipient = document.getElementById("recipientSelect");
 		const reference = document.getElementById("reference");
 
-		dataArray['g-recaptcha-response'] = gRecaptchaBlock ? grecaptcha.getResponse() : null;
+		dataArray['cf-turnstile-response'] = cfTurnstileBlock ? turnstile.getResponse() : null;
 		dataArray['recipient'] = recipient.value;
 		dataArray['reference'] = reference.value;
 
@@ -316,14 +316,12 @@ async function encryptFile(filename, file) {
 	return { name: filename, data: encrypted };
 }
 
-// var gRecaptchaResponse = null;
-function captchaSolved(recaptchaResponse) {
-	// gRecaptchaResponse = recaptchaResponse;
+// Turnstile callback functions
+function captchaSolved(turnstileResponse) {
 	document.getElementById("button").disabled = false;
 }
 
 function captchaExpired() {
-	// gRecaptchaResponse = null;
 	document.getElementById("button").disabled = true;
 }
 

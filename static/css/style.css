@@ -80,3 +80,14 @@ textarea#text { width: 760px; height: 200px; }
     width: 100%;
     min-width: 300px;
 }
+
+/* Cloudflare Turnstile widget styling */
+.cf-turnstile {
+    margin: 10px 0;
+}
+
+/* Ensure Turnstile iframe has proper styling */
+.cf-turnstile iframe {
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}

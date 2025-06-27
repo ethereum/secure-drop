@@ -111,27 +111,25 @@ def create_email(to_email, identifier, text, all_attachments, reference=''):
     
     return msg
 
-def validate_recaptcha(recaptcha_response):
+def validate_turnstile(turnstile_response):
     """
-    Validates the ReCaptcha response using Google's API.
+    Validates the Turnstile response using Cloudflare's API.
     """
-    secret_key = os.getenv('RECAPTCHASECRETKEY')
+    secret_key = os.getenv('TURNSTILE_SECRET_KEY')
     payload = {
         'secret': secret_key,
-        'response': recaptcha_response
+        'response': turnstile_response
     }
-    response = requests.post('https://www.google.com/recaptcha/api/siteverify', data=payload)
+    response = requests.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', data=payload)
     result = response.json()
 
     # Log the validation result
-    logging.info(f"ReCaptcha validation response: {result}")
+    logging.info(f"Turnstile validation response: {result}")
 
     if not result.get('success'):
-        raise ValueError('ReCaptcha verification failed.')
-
-    # Check action and score thresholds for additional security
-    if result.get('score', 1.0) < 0.5:
-        raise ValueError('ReCaptcha score is too low, indicating potential abuse.')
+        error_codes = result.get('error-codes', [])
+        logging.error(f"Turnstile verification failed with error codes: {error_codes}")
+        raise ValueError('Turnstile verification failed.')
 
 def send_email(message):
     """
@@ -187,11 +185,11 @@ def get_forwarded_address():
     return get_remote_address()
 
 # Validate required environment variables
-required_env_vars = ['RECAPTCHASITEKEY', 'RECAPTCHASECRETKEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL']
+required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL']
 validate_env_vars(required_env_vars)
 
-RECAPTCHASITEKEY = os.environ['RECAPTCHASITEKEY']
-RECAPTCHASECRETKEY = os.environ['RECAPTCHASECRETKEY']
+TURNSTILE_SITE_KEY = os.environ['TURNSTILE_SITE_KEY']
+TURNSTILE_SECRET_KEY = os.environ['TURNSTILE_SECRET_KEY']
 AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
 AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 AWS_REGION = os.environ['AWS_REGION']
@@ -222,7 +220,7 @@ else:
 
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html', notice='', hascaptcha=True, attachments_number=Config.NUMBER_OF_ATTACHMENTS, recaptcha_sitekey=RECAPTCHASITEKEY)
+    return render_template('index.html', notice='', hascaptcha=True, attachments_number=Config.NUMBER_OF_ATTACHMENTS, turnstile_sitekey=TURNSTILE_SITE_KEY)
 
 @app.route('/submit-encrypted-data', methods=['POST'])
 @limiter.limit("3 per minute")
@@ -231,14 +229,14 @@ def submit():
         # Parse JSON data from request
         data = request.get_json()
 
-        # Validate ReCaptcha
-        recaptcha_response = data.get('g-recaptcha-response', '')
-        if not recaptcha_response:
-            logging.warning(f"Missing ReCaptcha response. Potential bypass attempt detected from IP: {request.remote_addr}")
-            return jsonify({'status': 'failure', 'message': 'Missing ReCaptcha token'}), 400
+        # Validate Turnstile
+        turnstile_response = data.get('cf-turnstile-response', '')
+        if not turnstile_response:
+            logging.warning(f"Missing Turnstile response. Potential bypass attempt detected from IP: {request.remote_addr}")
+            return jsonify({'status': 'failure', 'message': 'Missing Turnstile token'}), 400
 
         try:
-            validate_recaptcha(recaptcha_response)
+            validate_turnstile(turnstile_response)
         except ValueError as e:
             return jsonify({'status': 'failure', 'message': str(e)}), 400
 
