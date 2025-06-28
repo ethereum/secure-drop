@@ -188,6 +188,7 @@ def get_forwarded_address():
 def find_aog_item_by_grant_id(grant_id):
     """
     Finds an AOG (Approval of Grants) item in Kissflow by Grant ID.
+    Uses the admin endpoint to get all items and searches through them.
     Returns the item ID if found, None otherwise.
     """
     try:
@@ -201,31 +202,71 @@ def find_aog_item_by_grant_id(grant_id):
             logging.error("Missing Kissflow configuration")
             return None
         
-        # Kissflow API endpoint to search for items
-        url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/{process_id}/items"
-        
         headers = {
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
             'X-Access-Key-Id': access_key_id,
             'X-Access-Key-Secret': access_key_secret
         }
         
-        # Search for items with matching Grant ID in Request_number field
-        params = {
-            'filter': f'Request_number eq "{grant_id}"',
-            'limit': 1
-        }
+        # Use admin endpoint to get all items
+        page_number = 1
+        page_size = 100  # Get 100 items per page
         
-        response = requests.get(url, headers=headers, params=params)
-        
-        if response.status_code == 200:
+        while True:
+            # Kissflow admin API endpoint to get all items
+            url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/item"
+            
+            params = {
+                'page_number': page_number,
+                'page_size': page_size,
+                'apply_preference': False
+            }
+            
+            response = requests.get(url, headers=headers, params=params)
+            
+            if response.status_code != 200:
+                logging.error(f"Kissflow API error: {response.status_code} - {response.text}")
+                return None
+            
             data = response.json()
-            items = data.get('data', [])
-            if items:
-                return items[0].get('_id')
-        else:
-            logging.error(f"Kissflow API error: {response.status_code} - {response.text}")
+            
+            # The response structure contains table data with items
+            # Look for items in the response structure
+            items_found = []
+            
+            # Check if there's a table structure in the response
+            for table_name, table_data in data.items():
+                if table_name == "Columns" or table_name == "Filter":
+                    continue
+                    
+                if isinstance(table_data, list):
+                    for page_data in table_data:
+                        if isinstance(page_data, dict) and 'response' in page_data:
+                            items_found.extend(page_data['response'])
+            
+            # Search through the items for matching Grant ID
+            for item in items_found:
+                # Check various possible field names for the Grant ID
+                grant_id_fields = ['Request_number', 'GrantId', 'Grant_ID', 'grant_id', 'PONumber']
+                
+                for field in grant_id_fields:
+                    if field in item and str(item[field]) == str(grant_id):
+                        logging.info(f"Found AOG item with ID {item.get('_id')} for Grant ID {grant_id}")
+                        return item.get('_id')
+            
+            # If we found fewer items than page_size, we've reached the end
+            if len(items_found) < page_size:
+                break
+                
+            page_number += 1
+            
+            # Safety check to prevent infinite loops
+            if page_number > 100:  # Max 10,000 items (100 pages * 100 items)
+                logging.warning("Reached maximum page limit while searching for Grant ID")
+                break
+        
+        logging.warning(f"No AOG item found for Grant ID: {grant_id}")
+        return None
             
     except Exception as e:
         logging.error(f"Error finding AOG item: {str(e)}")
@@ -235,6 +276,7 @@ def find_aog_item_by_grant_id(grant_id):
 def update_aog_kyc_comments(item_id, legal_identifier):
     """
     Updates the KYC_Comments field in a Kissflow AOG item with the legal identifier.
+    Uses the admin PUT endpoint to update item details.
     """
     try:
         subdomain = os.getenv('KISSFLOW_SUBDOMAIN', 'ethereum')
@@ -247,9 +289,7 @@ def update_aog_kyc_comments(item_id, legal_identifier):
             logging.error("Missing Kissflow configuration")
             return False
         
-        # Kissflow API endpoint to update an item
-        url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/{process_id}/items/{item_id}"
-        
+        # First, get the current item details to preserve existing data
         headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -257,14 +297,25 @@ def update_aog_kyc_comments(item_id, legal_identifier):
             'X-Access-Key-Secret': access_key_secret
         }
         
-        # Update the KYC_Comments field
-        payload = {
-            'KYC_Comments': legal_identifier
-        }
+        # Get current item details using admin endpoint
+        get_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/item/{item_id}"
+        get_response = requests.get(get_url, headers=headers)
         
-        response = requests.patch(url, headers=headers, json=payload)
+        if get_response.status_code != 200:
+            logging.error(f"Failed to get current item details: {get_response.status_code} - {get_response.text}")
+            return False
         
-        if response.status_code in [200, 204]:
+        current_item = get_response.json()
+        
+        # Update the KYC_Comments field while preserving other fields
+        current_item['KYC_Comments'] = legal_identifier
+        
+        # Use admin PUT endpoint to update the item
+        put_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/{item_id}"
+        
+        response = requests.put(put_url, headers=headers, json=current_item)
+        
+        if response.status_code == 200:
             logging.info(f"Successfully updated AOG item {item_id} with legal identifier {legal_identifier}")
             return True
         else:
