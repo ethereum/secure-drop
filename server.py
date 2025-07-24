@@ -235,15 +235,16 @@ def find_aog_item_by_grant_id(grant_id):
             items_found = []
             
             # Check if there's a table structure in the response
-            for table_name, table_data in data.items():
-                if table_name == "Columns" or table_name == "Filter":
+            for key, val in data.items():
+                if key != "Data": 
                     continue
                     
-                if isinstance(table_data, list):
-                    for page_data in table_data:
-                        if isinstance(page_data, dict) and 'response' in page_data:
-                            items_found.extend(page_data['response'])
-            
+                if isinstance(val, list):
+                    for page_data in val:
+                        if isinstance(page_data, dict) and '_created_by' in page_data:
+                            items_found.append(page_data)
+           
+            #print(items_found)
             # Search through the items for matching Grant ID
             for item in items_found:
                 # Check various possible field names for the Grant ID
@@ -298,7 +299,7 @@ def update_aog_kyc_comments(item_id, legal_identifier):
         }
         
         # Get current item details using admin endpoint
-        get_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/item/{item_id}"
+        get_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/{item_id}"
         get_response = requests.get(get_url, headers=headers)
         
         if get_response.status_code != 200:
@@ -310,10 +311,13 @@ def update_aog_kyc_comments(item_id, legal_identifier):
         # Update the KYC_Comments field while preserving other fields
         current_item['KYC_Comments'] = legal_identifier
         
+        # Remove all fields starting with '_' before sending to Kissflow
+        filtered_item = {k: v for k, v in current_item.items() if not k.startswith('_')}
+        
         # Use admin PUT endpoint to update the item
         put_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/{item_id}"
         
-        response = requests.put(put_url, headers=headers, json=current_item)
+        response = requests.put(put_url, headers=headers, json=filtered_item)
         
         if response.status_code == 200:
             logging.info(f"Successfully updated AOG item {item_id} with legal identifier {legal_identifier}")
