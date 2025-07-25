@@ -33,7 +33,7 @@ load_dotenv()
 class Config:
     MAX_CONTENT_LENGTH = 15 * 1024 * 1024  # 15 MB
     EMAIL_DOMAIN = "@ethereum.org"
-    DEFAULT_RECIPIENT_EMAIL = "george.cordalis@ethereum.org"
+    DEFAULT_RECIPIENT_EMAIL = "kyc@ethereum.org"
     NUMBER_OF_ATTACHMENTS = int(os.getenv('NUMBEROFATTACHMENTS', 10))
     SECRET_KEY = os.getenv('SECRET_KEY', 'you-should-set-a-secret-key')
 
