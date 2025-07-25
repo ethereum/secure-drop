@@ -5,8 +5,9 @@ from random import Random
 import requests
 import base64
 import json
+import uuid
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -15,12 +16,24 @@ from botocore.exceptions import ClientError
 
 from dotenv import load_dotenv
 
+from error_handling import (
+    ERROR_MESSAGES,
+    SecurityEvent,
+    get_safe_error_message,
+    get_client_ip,
+    log_security_event,
+    sanitize_error_details,
+    is_suspicious_error,
+    create_error_response
+)
+from logging_config import setup_logging
+
 load_dotenv()
 
 class Config:
     MAX_CONTENT_LENGTH = 15 * 1024 * 1024  # 15 MB
     EMAIL_DOMAIN = "@ethereum.org"
-    DEFAULT_RECIPIENT_EMAIL = "kyc@ethereum.org"
+    DEFAULT_RECIPIENT_EMAIL = "george.cordalis@ethereum.org"
     NUMBER_OF_ATTACHMENTS = int(os.getenv('NUMBEROFATTACHMENTS', 10))
     SECRET_KEY = os.getenv('SECRET_KEY', 'you-should-set-a-secret-key')
 
@@ -124,12 +137,20 @@ def validate_turnstile(turnstile_response):
     response = requests.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', data=payload)
     result = response.json()
 
-    # Log the validation result
-    logging.info(f"Turnstile validation response: {result}")
+    # Log the validation result (without sensitive data)
+    app_logger.info(f"Turnstile validation response success: {result.get('success')}")
 
     if not result.get('success'):
         error_codes = result.get('error-codes', [])
-        logging.error(f"Turnstile verification failed with error codes: {error_codes}")
+        app_logger.error(f"Turnstile verification failed with error codes: {error_codes}")
+        
+        # Log security event
+        log_security_event(
+            SecurityEvent.TURNSTILE_FAILED,
+            {'error_codes': error_codes},
+            request
+        )
+        
         raise ValueError('Turnstile verification failed.')
 
 def send_email(message):
@@ -148,42 +169,31 @@ def send_email(message):
         
         # Log the response
         message_id = response['MessageId']
-        logging.info('AWS SES email sent successfully. MessageId: %s', message_id)
+        app_logger.info('AWS SES email sent successfully. MessageId: %s', message_id)
         
     except ClientError as e:
         error_code = e.response['Error']['Code']
-        error_message = e.response['Error']['Message']
-        logging.error('AWS SES error: Code=%s, Message=%s', error_code, error_message)
+        sanitized_details = sanitize_error_details(e)
+        app_logger.error('AWS SES error: Code=%s', error_code, extra=sanitized_details)
         
-        # Provide user-friendly error messages
-        if error_code == 'MessageRejected':
-            raise ValueError('Error: Email was rejected by AWS SES. Please check the email configuration.')
-        elif error_code == 'MailFromDomainNotVerified':
-            raise ValueError('Error: The sender email domain is not verified in AWS SES.')
-        elif error_code == 'ConfigurationSetDoesNotExist':
-            raise ValueError('Error: AWS SES configuration error.')
-        else:
-            raise ValueError(f'Error: Failed to send email. {error_message}')
+        # Log security event for email failures
+        log_security_event(
+            SecurityEvent.EMAIL_SEND_FAILED,
+            {'aws_error_code': error_code},
+            request
+        )
+        
+        # Raise with generic error message
+        raise ValueError('email_failed')
             
     except Exception as e:
-        logging.error('Error sending email via AWS SES: %s', str(e))
-        raise
+        app_logger.error('Error sending email via AWS SES', extra=sanitize_error_details(e))
+        raise ValueError('email_failed')
 
 
 def get_forwarded_address():
-    # Check X-Forwarded-For header first
-    forwarded_for = request.headers.get('X-Forwarded-For')
-    if forwarded_for:
-        # Return the leftmost IP which is the original client IP
-        return forwarded_for.split(',')[0].strip()
-    
-    # Fall back to X-Real-IP if available
-    real_ip = request.headers.get('X-Real-IP')
-    if real_ip:
-        return real_ip
-    
-    # Otherwise use the default function
-    return get_remote_address()
+    # Use the get_client_ip function from error_handling module
+    return get_client_ip(request) or get_remote_address()
 
 def find_aog_item_by_grant_id(grant_id):
     """
@@ -375,14 +385,22 @@ app.config.from_object(Config)
 
 
 # Initialize rate limiting
-limiter = Limiter(get_forwarded_address, app=app, default_limits=["200 per day", "50 per hour"])
+limiter = Limiter(
+    get_forwarded_address, 
+    app=app, 
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"  # Explicitly use memory storage to suppress warning
+)
 
-# Configure logging
+# Configure structured logging
+app_logger, security_logger, perf_logger = setup_logging()
+
+# Keep compatibility with old logging configuration
 log_file = os.environ.get('LOG_FILE', '')
 if log_file:
-    logging.basicConfig(filename=log_file, level=logging.INFO)
-else:
-    logging.basicConfig(level=logging.INFO)
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    app_logger.addHandler(file_handler)
 
 @app.route('/', methods=['GET'])
 def index():
