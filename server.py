@@ -309,7 +309,12 @@ def update_aog_kyc_comments(item_id, legal_identifier):
         current_item = get_response.json()
         
         # Update the KYC_Comments field while preserving other fields
-        current_item['KYC_Comments'] = legal_identifier
+        current_kyc = current_item['KYC_Comments']
+
+        if current_kyc != "":
+            current_item['KYC_Comments'] = current_kyc + "\n" + legal_identifier
+        else:
+            current_item['KYC_Comments'] = legal_identifier
         
         # Remove all fields starting with '_' before sending to Kissflow
         filtered_item = {k: v for k, v in current_item.items() if not k.startswith('_')}
