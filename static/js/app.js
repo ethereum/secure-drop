@@ -31,7 +31,7 @@ Dropzone.options.dropzoneArea = {
 	autoQueue: false,
 	addRemoveLinks: true,
 	uploadMultiple: true,
-	dictDefaultMessage: 'You may drop files here to upload',
+	dictDefaultMessage: 'Drag & drop your files here - or click to browse. You can attach multiple files, up to a total of 15 MB.',
 	dictFileTooBig: 'File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.',
 	dictMaxFilesExceeded: 'You can only upload a maximum of {{maxFiles}} files.',
 	init: function() {
@@ -81,69 +81,6 @@ Dropzone.options.dropzoneArea = {
 		});
 	}
 };
-
-function initDropzone() {
-	var myDropzone = new Dropzone(document.getElementById("dropzone-area"), {
-		url: '/fake',
-		paramName: 'attachment',
-		autoProcessQueue: false,
-		autoQueue: false,
-		addRemoveLinks: true,
-		uploadMultiple: true,
-		dictDefaultMessage: 'You may drop files here to upload',
-		dictFileTooBig: 'File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.',
-		dictMaxFilesExceeded: 'You can only upload a maximum of {{maxFiles}} files.',
-		maxFilesize: 15, // Max file size per file in MB
-		maxFiles: 10, // Max number of files
-		init: function() {
-			var dropzone = this;
-			
-			this.on("addedfile", function(file) {
-				hideError(); // Clear any existing errors
-				
-				// Check individual file size
-				if (file.size > 15 * 1024 * 1024) {
-					this.removeFile(file);
-					showError(`Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 15MB.`);
-					return;
-				}
-				
-				// Calculate the total added file size
-				var totalSize = this.files.reduce(function(total, f) {
-					return total + f.size;
-				}, 0);
-				
-				// If the total added file size is greater than 15 MB, remove the file
-				if (totalSize > 15 * 1024 * 1024) {
-					this.removeFile(file);
-					showError(`Error: Total file size would exceed the 15MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
-				}
-			});
-			
-			this.on("maxfilesexceeded", function(file) {
-				this.removeFile(file);
-				showError(`Error: You can only upload a maximum of ${this.options.maxFiles} files.`);
-			});
-			
-			this.on("removedfile", function(file) {
-				hideError(); // Clear errors when file is removed
-				// Calculate the total added file size
-				var totalSize = this.files.reduce(function(total, f) {
-					return total + f.size;
-				}, 0);
-				
-				// Log the total added file size
-				console.log("Total file size: " + (totalSize / 1024 / 1024).toFixed(2) + "MB");
-			});
-			
-			this.on("error", function(file, errorMessage) {
-				this.removeFile(file);
-				showError(`Error: ${errorMessage}`);
-			});
-		}
-	});
-}
-
 
 var dataArray;
 function acceptEncryptedData(data) {

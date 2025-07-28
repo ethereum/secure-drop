@@ -4,6 +4,7 @@ from datetime import datetime
 from random import Random
 import requests
 import base64
+import json
 
 from flask import Flask, render_template, request, jsonify
 from flask_limiter import Limiter
@@ -184,6 +185,176 @@ def get_forwarded_address():
     # Otherwise use the default function
     return get_remote_address()
 
+def find_aog_item_by_grant_id(grant_id):
+    """
+    Finds an AOG (Approval of Grants) item in Kissflow by Grant ID.
+    Uses the admin endpoint to get all items and searches through them.
+    Returns the item ID if found, None otherwise.
+    """
+    try:
+        subdomain = os.getenv('KISSFLOW_SUBDOMAIN', 'ethereum')
+        access_key_id = os.getenv('KISSFLOW_ACCESS_KEY_ID')
+        access_key_secret = os.getenv('KISSFLOW_ACCESS_KEY_SECRET')
+        account_id = os.getenv('KISSFLOW_ACCOUNT_ID')
+        process_id = os.getenv('KISSFLOW_PROCESS_ID')
+        
+        if not all([access_key_id, access_key_secret, account_id, process_id]):
+            logging.error("Missing Kissflow configuration")
+            return None
+        
+        headers = {
+            'Accept': 'application/json',
+            'X-Access-Key-Id': access_key_id,
+            'X-Access-Key-Secret': access_key_secret
+        }
+        
+        # Use admin endpoint to get all items
+        page_number = 1
+        page_size = 100  # Get 100 items per page
+        
+        while True:
+            # Kissflow admin API endpoint to get all items
+            url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/item"
+            
+            params = {
+                'page_number': page_number,
+                'page_size': page_size,
+                'apply_preference': False
+            }
+            
+            response = requests.get(url, headers=headers, params=params)
+            
+            if response.status_code != 200:
+                logging.error(f"Kissflow API error: {response.status_code} - {response.text}")
+                return None
+            
+            data = response.json()
+            
+            # The response structure contains table data with items
+            # Look for items in the response structure
+            items_found = []
+            
+            # Check if there's a table structure in the response
+            for key, val in data.items():
+                if key != "Data": 
+                    continue
+                    
+                if isinstance(val, list):
+                    for page_data in val:
+                        if isinstance(page_data, dict) and '_created_by' in page_data:
+                            items_found.append(page_data)
+           
+            #print(items_found)
+            # Search through the items for matching Grant ID
+            for item in items_found:
+                # Check various possible field names for the Grant ID
+                grant_id_fields = ['Request_number', 'GrantId', 'Grant_ID', 'grant_id', 'PONumber']
+                
+                for field in grant_id_fields:
+                    if field in item and str(item[field]) == str(grant_id):
+                        logging.info(f"Found AOG item with ID {item.get('_id')} for Grant ID {grant_id}")
+                        return item.get('_id')
+            
+            # If we found fewer items than page_size, we've reached the end
+            if len(items_found) < page_size:
+                break
+                
+            page_number += 1
+            
+            # Safety check to prevent infinite loops
+            if page_number > 100:  # Max 10,000 items (100 pages * 100 items)
+                logging.warning("Reached maximum page limit while searching for Grant ID")
+                break
+        
+        logging.warning(f"No AOG item found for Grant ID: {grant_id}")
+        return None
+            
+    except Exception as e:
+        logging.error(f"Error finding AOG item: {str(e)}")
+    
+    return None
+
+def update_aog_kyc_comments(item_id, legal_identifier):
+    """
+    Updates the KYC_Comments field in a Kissflow AOG item with the legal identifier.
+    Uses the admin PUT endpoint to update item details.
+    """
+    try:
+        subdomain = os.getenv('KISSFLOW_SUBDOMAIN', 'ethereum')
+        access_key_id = os.getenv('KISSFLOW_ACCESS_KEY_ID')
+        access_key_secret = os.getenv('KISSFLOW_ACCESS_KEY_SECRET')
+        account_id = os.getenv('KISSFLOW_ACCOUNT_ID')
+        process_id = os.getenv('KISSFLOW_PROCESS_ID')
+        
+        if not all([access_key_id, access_key_secret, account_id, process_id]):
+            logging.error("Missing Kissflow configuration")
+            return False
+        
+        # First, get the current item details to preserve existing data
+        headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Access-Key-Id': access_key_id,
+            'X-Access-Key-Secret': access_key_secret
+        }
+        
+        # Get current item details using admin endpoint
+        get_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/{item_id}"
+        get_response = requests.get(get_url, headers=headers)
+        
+        if get_response.status_code != 200:
+            logging.error(f"Failed to get current item details: {get_response.status_code} - {get_response.text}")
+            return False
+        
+        current_item = get_response.json()
+        
+        # Update the KYC_Comments field while preserving other fields
+        current_kyc = current_item['KYC_Comments']
+
+        if current_kyc != "":
+            current_item['KYC_Comments'] = current_kyc + "\n" + legal_identifier
+        else:
+            current_item['KYC_Comments'] = legal_identifier
+        
+        # Remove all fields starting with '_' before sending to Kissflow
+        filtered_item = {k: v for k, v in current_item.items() if not k.startswith('_')}
+        
+        # Use admin PUT endpoint to update the item
+        put_url = f"https://{subdomain}.kissflow.com/process/2/{account_id}/admin/{process_id}/{item_id}"
+        
+        response = requests.put(put_url, headers=headers, json=filtered_item)
+        
+        if response.status_code == 200:
+            logging.info(f"Successfully updated AOG item {item_id} with legal identifier {legal_identifier}")
+            return True
+        else:
+            logging.error(f"Kissflow API error: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        logging.error(f"Error updating AOG item: {str(e)}")
+    
+    return False
+
+def send_identifier_to_kissflow(grant_id, legal_identifier):
+    """
+    Sends the legal identifier to the Kissflow AOG item based on Grant ID.
+    """
+    if not grant_id:
+        logging.warning("No Grant ID provided, skipping Kissflow update")
+        return False
+    
+    # Find the AOG item by Grant ID
+    item_id = find_aog_item_by_grant_id(grant_id)
+    
+    if not item_id:
+        logging.warning(f"No AOG item found for Grant ID: {grant_id}")
+        return False
+    
+    # Update the KYC_Comments field
+    success = update_aog_kyc_comments(item_id, legal_identifier)
+    
+    return success
+
 # Validate required environment variables
 required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL']
 validate_env_vars(required_env_vars)
@@ -263,6 +434,16 @@ def submit():
         message = create_email(to_email, identifier, message, files, reference)
 
         send_email(message)
+
+        # If this is a legal submission with a Grant ID (reference), send to Kissflow
+        if recipient == 'legal' and reference:
+            kissflow_success = send_identifier_to_kissflow(reference, identifier)
+            if kissflow_success:
+                logging.info(f"Successfully sent identifier {identifier} to Kissflow for Grant ID {reference}")
+            else:
+                logging.warning(f"Failed to send identifier {identifier} to Kissflow for Grant ID {reference}")
+                # Note: We don't fail the submission if Kissflow update fails
+                # The email has already been sent successfully
 
         notice = f'Thank you! The relevant team was notified of your submission. Please record the identifier and refer to it in correspondence: {identifier}'
 

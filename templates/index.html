@@ -14,37 +14,33 @@
 		<fieldset>
 			<legend>Secure Submission Form</legend>
 			<span class="pure-form-message">
-				Please use this form when instructed by a member of the Ethereum Foundation to securely submit documents. You can submit any kind of files and an accompanying message.<br><br>
-				Your files and message will be strongly encrypted before leaving your device, and you will receive a unique ID for your submission. Remember: Record this ID. It is not a secret, and use it to refer to the submission in future correspondence.<br><br>
+				Use this form when directed by a member of the Ethereum Foundation to securely share documents. You may include any type of file along with an optional message.<br><br>
+				Your files and message are fully encrypted on your device before being sent. After submission, you’ll receive a unique reference ID. Be sure to note this ID - You it’s not confidential, but it will help you reference this submission in any future communication.
 			</span>
-			<label id="recipientLabel" for="recipient">Recipient team:</label>
-			<select id="recipientSelect" required>
-				<option value="legal" selected>Legal</option>
-				<option value="devcon">Devcon</option>
-				<option value="security">Security</option>
-			</select>
-			<br>
-			<div id="referenceContainer">
-				<label id="referenceLabel" for="reference">Reference ID: <span class="required">*</span></label>
-				<input id="reference" name="reference" type="text" placeholder="Examples: FY00-1234, EXP12345, AOC000, HAT1234" required>
-				<span class="pure-form-message reference-help">This is the ID provided to you by a member of the Ethereum Foundation. If you're unsure which ID to use, please reach out to your contact.</span>
+			<div class="form-row">
+				<div class="form-group">
+					<label id="recipientLabel" for="recipient">Recipient team:</label>
+					<select id="recipientSelect" required>
+						<option value="legal" selected>Legal</option>
+						<option value="devcon">Devcon</option>
+						<option value="security">Security</option>
+					</select>
+				</div>
+				<div class="form-group" id="referenceContainer">
+					<label id="referenceLabel" for="reference">Reference ID: <span class="required">*</span></label>
+					<input id="reference" name="reference" type="text" placeholder="Examples: FY00-1234, EXP12345, AOC000, HAT1234" required>
+					<span class="pure-form-message reference-help">This is the ID provided to you by a member of the Ethereum Foundation. If you're unsure which ID to use, please reach out to your contact.</span>
+				</div>
 			</div>
+			<label id="messageLabel" for="text">Message to the team (optional)</label>
+			<textarea id="text" name="text" type="text" placeholder="Add any additional information we should know about your submission."></textarea>
 			<br>
-			<label id="messageLabel" for="text">Additional Information:</label>
-			<textarea id="text" name="text" type="text" placeholder="Please include any additional information that we should know about this submission."></textarea>
-			<br>
-			<label for="file-selector">The encrypted container that will be sent with your message. You may upload multiple files, up to a 15MB limit:</label>
-
-			<button id="add-file-button" type="button" class="pure-button">Add file</button>
-			<div id="error-message" class="error-message" style="display: none;"></div>
 			<div id="dropzone-area" class="dropzone"></div>
+			<div id="error-message" class="error-message" style="display: none;"></div>
 
 			{% if hascaptcha %}
-			<br />
 			<div class="cf-turnstile" id="cfTurnstile" data-sitekey="{{ turnstile_sitekey }}" data-theme="light" data-callback="captchaSolved" data-expired-callback="captchaExpired"></div>
 			{% endif %}
-			<br />
-			<br />
 			<button id="button" type="submit" class="pure-button pure-button-primary"{% if hascaptcha %} disabled="disabled"{% endif %}>Encrypt and submit the data</button>
 		</fieldset>
 	</form>
