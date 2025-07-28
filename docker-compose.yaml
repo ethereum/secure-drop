@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build: .
@@ -12,7 +10,3 @@ services:
       FLASK_APP: server.py
       FLASK_DEBUG: ${DEBUG}
       DEBUG: ${DEBUG}
-      SENDGRIDFROMEMAIL: ${SENDGRIDFROMEMAIL}
-      SENDGRIDAPIKEY: ${SENDGRIDAPIKEY}
-      RECAPTCHASITEKEY: ${RECAPTCHASITEKEY}
-      RECAPTCHASECRETKEY: ${RECAPTCHASECRETKEY}
