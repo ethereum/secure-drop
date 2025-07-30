@@ -23,7 +23,7 @@ function hideError() {
 }
 
 Dropzone.options.dropzoneArea = {
-	maxFilesize: 15, // Max file size per file in MB
+	maxFilesize: 20, // Max file size per file in MB
 	maxFiles: 10, // Max number of files
 	url: '/fake',
 	paramName: 'attachment',
@@ -31,7 +31,7 @@ Dropzone.options.dropzoneArea = {
 	autoQueue: false,
 	addRemoveLinks: true,
 	uploadMultiple: true,
-	dictDefaultMessage: 'Drag & drop your files here - or click to browse. You can attach multiple files, up to a total of 15 MB.',
+	dictDefaultMessage: 'Drag & drop your files here - or click to browse. You can attach multiple files, up to a total of 20MB.',
 	dictFileTooBig: 'File is too big ({{filesize}}MB). Max filesize: {{maxFilesize}}MB.',
 	dictMaxFilesExceeded: 'You can only upload a maximum of {{maxFiles}} files.',
 	init: function() {
@@ -41,9 +41,9 @@ Dropzone.options.dropzoneArea = {
 			hideError(); // Clear any existing errors
 			
 			// Check individual file size
-			if (file.size > 15 * 1024 * 1024) {
+			if (file.size > 20 * 1024 * 1024) {
 				this.removeFile(file);
-				showError(`Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 15MB.`);
+				showError(`Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 20MB.`);
 				return;
 			}
 			
@@ -52,10 +52,10 @@ Dropzone.options.dropzoneArea = {
 				return total + f.size;
 			}, 0);
 			
-			// If the total added file size is greater than 15 MB, remove the file
-			if (totalSize > 15 * 1024 * 1024) {
+			// If the total added file size is greater than 20 MB, remove the file
+			if (totalSize > 20 * 1024 * 1024) {
 				this.removeFile(file);
-				showError(`Error: Total file size would exceed the 15MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+				showError(`Error: Total file size would exceed the 20MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
 			}
 		});
 		
@@ -179,15 +179,15 @@ document.addEventListener('DOMContentLoaded', function() {
 			return total + file.size;
 		}, 0);
 		
-		if (totalSize > 15 * 1024 * 1024) {
-			showError(`Error: Total file size exceeds the 15MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+		if (totalSize > 20 * 1024 * 1024) {
+			showError(`Error: Total file size exceeds the 20MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
 			return false;
 		}
 		
 		// Check individual file sizes
 		for (let i = 0; i < selectedFiles.length; i++) {
-			if (selectedFiles[i].size > 15 * 1024 * 1024) {
-				showError(`Error: File "${selectedFiles[i].name}" is too large (${(selectedFiles[i].size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 15MB.`);
+			if (selectedFiles[i].size > 20 * 1024 * 1024) {
+				showError(`Error: File "${selectedFiles[i].name}" is too large (${(selectedFiles[i].size / 1024 / 1024).toFixed(2)}MB). Maximum file size is 20MB.`);
 				return false;
 			}
 		}
