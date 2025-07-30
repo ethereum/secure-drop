@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    command: gunicorn server:app -w 4 -b 0.0.0.0:4200 --access-logfile - --error-logfile -
+    command: gunicorn server:app -w 4 -b 0.0.0.0:4200 --timeout 120 --access-logfile - --error-logfile -
     ports:
       - "4200:4200"
     volumes:
