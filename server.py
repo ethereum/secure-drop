@@ -18,9 +18,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    MAX_CONTENT_LENGTH = 15 * 1024 * 1024  # 15 MB
+    MAX_CONTENT_LENGTH = 40 * 1024 * 1024  # 40MB - this is the SES limit and is greated than the 20MB limit imposed in the dropzone/frontend to allow for PGP overhead
     EMAIL_DOMAIN = "@ethereum.org"
-    DEFAULT_RECIPIENT_EMAIL = "kyc@ethereum.org"
+    DEFAULT_RECIPIENT_EMAIL = os.getenv('DEFAULT_RECIPIENT_EMAIL', 'kyc@ethereum.org')
     NUMBER_OF_ATTACHMENTS = int(os.getenv('NUMBEROFATTACHMENTS', 10))
     SECRET_KEY = os.getenv('SECRET_KEY', 'you-should-set-a-secret-key')
 
@@ -134,39 +134,63 @@ def validate_turnstile(turnstile_response):
 
 def send_email(message):
     """
-    Sends the email using AWS SES and logs detailed information for debugging.
+    Sends the email using AWS SES V2 and logs detailed information for debugging.
     """
     try:
-        # Send the email
-        response = ses_client.send_raw_email(
-            Source=message['From'],
-            Destinations=[message['To']],
-            RawMessage={
-                'Data': message.as_string()
+        # Convert MIME message to bytes for SES V2
+        raw_message_data = message.as_string().encode('utf-8')
+        
+        # Check message size before sending (AWS SES limit is 40MB)
+        message_size_mb = len(raw_message_data) / (1024 * 1024)
+        if message_size_mb > 40:
+            logging.error(f'Email message size ({message_size_mb:.2f} MB) exceeds AWS SES limit of 40MB')
+            raise ValueError(f'Error: Email message is too large ({message_size_mb:.2f} MB). AWS SES has a 40MB limit. Please reduce the size of attachments.')
+        
+        logging.info(f'Sending email with size: {message_size_mb:.2f} MB')
+        
+        # Send the email using SES V2
+        response = ses_client.send_email(
+            FromEmailAddress=message['From'],
+            Destination={
+                'ToAddresses': [message['To']]
+            },
+            Content={
+                'Raw': {
+                    'Data': raw_message_data
+                }
             }
         )
         
         # Log the response
         message_id = response['MessageId']
-        logging.info('AWS SES email sent successfully. MessageId: %s', message_id)
+        logging.info('AWS SES V2 email sent successfully. MessageId: %s', message_id)
         
     except ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        logging.error('AWS SES error: Code=%s, Message=%s', error_code, error_message)
+        logging.error('AWS SES V2 error: Code=%s, Message=%s', error_code, error_message)
         
         # Provide user-friendly error messages
-        if error_code == 'MessageRejected':
+        if error_code == '413' or error_code == 'RequestEntityTooLarge':
+            # Log the message size for debugging
+            message_size_mb = len(raw_message_data) / (1024 * 1024)
+            logging.error(f'Email message size: {message_size_mb:.2f} MB')
+            raise ValueError('Error: Email message is too large. AWS SES has a 40MB limit for raw messages. Please reduce the size of attachments.')
+        elif error_code == 'MessageRejected':
             raise ValueError('Error: Email was rejected by AWS SES. Please check the email configuration.')
         elif error_code == 'MailFromDomainNotVerified':
             raise ValueError('Error: The sender email domain is not verified in AWS SES.')
         elif error_code == 'ConfigurationSetDoesNotExist':
             raise ValueError('Error: AWS SES configuration error.')
+        elif error_code == 'AccountSuspendedException':
+            raise ValueError('Error: AWS SES account is suspended.')
+        elif error_code == 'SendingPausedException':
+            raise ValueError('Error: AWS SES sending is paused for this account.')
         else:
             raise ValueError(f'Error: Failed to send email. {error_message}')
             
     except Exception as e:
-        logging.error('Error sending email via AWS SES: %s', str(e))
+        logging.error('Error sending email via AWS SES V2: %s', str(e))
         raise
 
 
@@ -366,9 +390,9 @@ AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 AWS_REGION = os.environ['AWS_REGION']
 FROMEMAIL = os.environ['SES_FROM_EMAIL']
 
-# Initialize AWS SES client
+# Initialize AWS SES V2 client
 ses_client = boto3.client(
-    'ses',
+    'sesv2',
     region_name=AWS_REGION,
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY
@@ -376,8 +400,6 @@ ses_client = boto3.client(
 
 app = Flask(__name__)
 app.config.from_object(Config)
-
-
 
 # Initialize rate limiting
 limiter = Limiter(get_forwarded_address, app=app, default_limits=["200 per day", "50 per hour"])
@@ -388,6 +410,15 @@ if log_file:
     logging.basicConfig(filename=log_file, level=logging.INFO)
 else:
     logging.basicConfig(level=logging.INFO)
+    
+# DEBUG: Print Config values on startup
+logging.info("=== DEBUG: Config Values on Startup ===")
+logging.info(f"MAX_CONTENT_LENGTH: {Config.MAX_CONTENT_LENGTH}")
+logging.info(f"EMAIL_DOMAIN: {Config.EMAIL_DOMAIN}")
+logging.info(f"DEFAULT_RECIPIENT_EMAIL: {Config.DEFAULT_RECIPIENT_EMAIL}")
+logging.info(f"NUMBER_OF_ATTACHMENTS: {Config.NUMBER_OF_ATTACHMENTS}")
+logging.info(f"SECRET_KEY: {'[SET]' if Config.SECRET_KEY != 'you-should-set-a-secret-key' else '[USING DEFAULT - PLEASE SET!]'}")
+logging.info("=====================================")
 
 @app.route('/', methods=['GET'])
 def index():
