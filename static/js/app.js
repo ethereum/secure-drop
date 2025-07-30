@@ -151,16 +151,6 @@ document.addEventListener('DOMContentLoaded', function() {
 	// Trigger change event on page load to set initial state
 	recipient.dispatchEvent(new Event('change'));
 
-	// Redirect clicks on a greed button
-	const addFileButton = document.getElementById('add-file-button');
-	addFileButton.addEventListener('click', (event) => {
-		// Get a reference to the file input element used by Dropzone.js
-		var fileInput = document.querySelector(".dz-hidden-input");
-
-		// Simulate a click event on the file input element
-		fileInput.click();
-	});
-
 	// Multi file upload meets encryption
 	document.forms[0].addEventListener("submit", function(evt) {
 		evt.preventDefault();
