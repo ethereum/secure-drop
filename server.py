@@ -333,7 +333,7 @@ def update_aog_kyc_comments(item_id, legal_identifier):
         current_item = get_response.json()
         
         # Update the KYC_Comments field while preserving other fields
-        current_kyc = current_item['KYC_Comments']
+        current_kyc = current_item.get('KYC_Comments', '')
 
         if current_kyc != "":
             current_item['KYC_Comments'] = current_kyc + "\n" + legal_identifier
