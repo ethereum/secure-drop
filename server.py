@@ -420,6 +420,11 @@ logging.info(f"NUMBER_OF_ATTACHMENTS: {Config.NUMBER_OF_ATTACHMENTS}")
 logging.info(f"SECRET_KEY: {'[SET]' if Config.SECRET_KEY != 'you-should-set-a-secret-key' else '[USING DEFAULT - PLEASE SET!]'}")
 logging.info("=====================================")
 
+@app.route('/health', methods=['GET'])
+@limiter.exempt
+def health():
+    return jsonify({'status': 'ok'}), 200
+
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html', notice='', hascaptcha=True, attachments_number=Config.NUMBER_OF_ATTACHMENTS, turnstile_sitekey=TURNSTILE_SITE_KEY)
