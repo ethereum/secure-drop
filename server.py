@@ -335,10 +335,19 @@ def update_aog_kyc_comments(item_id, legal_identifier):
         # Update the KYC_Comments field while preserving other fields
         current_kyc = current_item.get('KYC_Comments', '')
 
-        if current_kyc != "":
-            current_item['KYC_Comments'] = current_kyc + "\n" + legal_identifier
+        now = datetime.utcnow()
+        day = now.day
+        if 11 <= day <= 13:
+            suffix = 'th'
         else:
-            current_item['KYC_Comments'] = legal_identifier
+            suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+        timestamp = now.strftime(f'%a %b {day}{suffix} %Y %H:%M UTC')
+        entry = f"{legal_identifier} - {timestamp}"
+
+        if current_kyc != "":
+            current_item['KYC_Comments'] = current_kyc + "\n" + entry
+        else:
+            current_item['KYC_Comments'] = entry
         
         # Remove all fields starting with '_' before sending to Kissflow
         filtered_item = {k: v for k, v in current_item.items() if not k.startswith('_')}
