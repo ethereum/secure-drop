@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from random import Random
 import requests
 import base64
@@ -335,7 +335,7 @@ def update_aog_kyc_comments(item_id, legal_identifier):
         # Update the KYC_Comments field while preserving other fields
         current_kyc = current_item.get('KYC_Comments', '')
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         day = now.day
         if 11 <= day <= 13:
             suffix = 'th'
