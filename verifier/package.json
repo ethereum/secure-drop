@@ -11,8 +11,9 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@zkpassport/sdk": "0.16.2",
     "@zkpassport/registry": "0.14.0",
+    "@zkpassport/sdk": "0.16.2",
+    "@zkpassport/utils": "0.37.5",
     "openpgp": "5.11.3"
   }
 }

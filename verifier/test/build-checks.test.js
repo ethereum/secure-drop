@@ -22,14 +22,14 @@ function filesContaining(files, needle) {
   return files.filter((file) => fs.readFileSync(file, "utf8").includes(needle))
 }
 
-const src = filesUnder(path.join(__dirname, "..", "src"), [".js"])
-const sdk = filesUnder(path.join(__dirname, "..", "node_modules", "@zkpassport"), [".js", ".cjs"])
-
 test("nothing references the hosted verifier", () => {
+  const src = filesUnder(path.join(__dirname, "..", "src"), [".js"])
+  const sdk = filesUnder(path.join(__dirname, "..", "node_modules", "@zkpassport"), [".js", ".cjs"])
   assert.deepEqual(filesContaining([...src, ...sdk], "verifier.zkpassport.id"), [])
 })
 
 test("sidecar never attaches a policy or registers onResult", () => {
+  const src = filesUnder(path.join(__dirname, "..", "src"), [".js"])
   assert.deepEqual(filesContaining(src, ".policy("), [])
   assert.deepEqual(filesContaining(src, "onResult"), [])
 })
