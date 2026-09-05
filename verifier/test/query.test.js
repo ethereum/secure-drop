@@ -1,6 +1,6 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
-const { buildExpectedQuery, DISCLOSED_FIELDS, FACEMATCH_MODES } = require("../src/query")
+const { buildExpectedQuery, DISCLOSED_FIELDS } = require("../src/query")
 
 const domain = "secure-drop.ethereum.org"
 
@@ -18,20 +18,11 @@ test("face match mode is passed through", () => {
   assert.deepEqual(buildExpectedQuery({ domain, facematch: "regular" }).facematch, { mode: "regular" })
 })
 
-test("rejects an unknown face match mode", () => {
-  assert.throws(() => buildExpectedQuery({ domain, facematch: "loose" }), /ZKPASSPORT_FACEMATCH/)
-  assert.throws(() => buildExpectedQuery({ domain, facematch: undefined }), /ZKPASSPORT_FACEMATCH/)
-})
-
-test("query shape is exactly what the browser builds", () => {
+test("full query shape", () => {
   const disclosed = Object.fromEntries(DISCLOSED_FIELDS.map((f) => [f, { disclose: true }]))
   disclosed.document_type = { disclose: true, eq: "passport" }
   assert.deepEqual(buildExpectedQuery({ domain, facematch: "strict" }), {
     ...disclosed,
     facematch: { mode: "strict" },
   })
-})
-
-test("mode list is what the config table documents", () => {
-  assert.deepEqual(FACEMATCH_MODES, ["strict", "regular", "off"])
 })

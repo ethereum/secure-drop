@@ -1,26 +1,37 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
+const fs = require("node:fs")
+const os = require("node:os")
 const path = require("node:path")
 const openpgp = require("openpgp")
-const { readPublicKeyBlock, loadEncryptionKey, encryptText } = require("../src/pgp")
+const { loadEncryptionKey, encryptText } = require("../src/pgp")
 
 const publicKeysJs = path.join(__dirname, "..", "..", "static", "js", "public-keys.js")
 
+// Writes a public-keys.js lookalike containing one key, for cases the real file should not have to provide.
+function writeKeysFile(recipient, armoredKey) {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "pgp-test-")), "public-keys.js")
+  fs.writeFileSync(file, `var publicKeys=[];\npublicKeys['${recipient}']=${JSON.stringify(armoredKey)};\nmodule.exports = publicKeys;\n`)
+  return file
+}
+
 test("finds the legal key in public-keys.js", async () => {
-  const block = readPublicKeyBlock(publicKeysJs, "legal")
-  assert.ok(block.startsWith("-----BEGIN PGP PUBLIC KEY BLOCK-----"))
-  assert.ok(block.endsWith("-----END PGP PUBLIC KEY BLOCK-----"))
   const key = await loadEncryptionKey(publicKeysJs, "legal")
   assert.equal(key.getFingerprint().toUpperCase(), "A6E7EF2FE95F127BC842258F5EEF80BE525AF017")
 })
 
-test("unknown recipient throws", () => {
-  assert.throws(() => readPublicKeyBlock(publicKeysJs, "nobody"), /No PGP public key for "nobody"/)
+test("unknown recipient throws", async () => {
+  await assert.rejects(loadEncryptionKey(publicKeysJs, "nobody"), /No PGP public key for "nobody"/)
 })
 
 test("a key that cannot encrypt is rejected at load", async () => {
-  // The security key expired on 2026-02-22; openpgp refuses to encrypt to it.
-  await assert.rejects(loadEncryptionKey(publicKeysJs, "security"), /expired/i)
+  const { publicKey } = await openpgp.generateKey({
+    type: "ecc",
+    curve: "ed25519",
+    userIDs: [{ name: "signing only" }],
+    subkeys: [],
+  })
+  await assert.rejects(loadEncryptionKey(writeKeysFile("signer", publicKey), "signer"), /encryption/i)
 })
 
 test("encrypted text decrypts with the matching private key", async () => {

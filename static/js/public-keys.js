@@ -236,3 +236,9 @@ MDSE3KJLfi637cexUu43nK0h1aBRy6cllKU7+ZMozdV8dPcY/LPhmtpOSW/Z
 u8Z1
 =EKgB
 -----END PGP PUBLIC KEY BLOCK-----`
+
+
+// Also exported as a Node module so the verification server in verifier/
+// can encrypt passport data to the same legal key the browser uses.
+// The browser ignores this line.
+if (typeof module !== "undefined") module.exports = publicKeys;

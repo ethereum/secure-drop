@@ -14,14 +14,10 @@ const DISCLOSED_FIELDS = [
   "document_type",
 ]
 
-const FACEMATCH_MODES = ["strict", "regular", "off"]
-
-// Builds the query every applicant proof must match. The browser builds the
-// same query; the sidecar never trusts the one the client sends.
+// Builds the query the sidecar passes to the SDK as the original query. The
+// browser builds the same one. The face match mode has already been validated
+// by loadConfig.
 function buildExpectedQuery({ domain, facematch }) {
-  if (!FACEMATCH_MODES.includes(facematch)) {
-    throw new Error(`ZKPASSPORT_FACEMATCH must be one of ${FACEMATCH_MODES.join(", ")}, got "${facematch}"`)
-  }
   let builder = new ZKPassport(domain).createQuery()
   for (const field of DISCLOSED_FIELDS) {
     builder = builder.disclose(field)
@@ -33,4 +29,4 @@ function buildExpectedQuery({ domain, facematch }) {
   return builder.done().query
 }
 
-module.exports = { buildExpectedQuery, DISCLOSED_FIELDS, FACEMATCH_MODES }
+module.exports = { buildExpectedQuery, DISCLOSED_FIELDS }

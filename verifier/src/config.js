@@ -1,6 +1,5 @@
-const { FACEMATCH_MODES } = require("./query")
-
 const REQUIRED = ["ZKPASSPORT_DOMAIN", "ZKPASSPORT_SCOPE", "ETH_RPC_URL"]
+const FACEMATCH_MODES = ["strict", "regular", "off"]
 
 function loadConfig(env = process.env) {
   const missing = REQUIRED.filter((name) => !env[name])
@@ -17,10 +16,13 @@ function loadConfig(env = process.env) {
     publicKeysJsPath: env.PUBLIC_KEYS_JS_PATH || "/app/static/js/public-keys.js",
   }
 
+  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
+    throw new Error(`PORT must be a whole number between 1 and 65535, got "${env.PORT}"`)
+  }
   if (!FACEMATCH_MODES.includes(config.facematch)) {
     throw new Error(`ZKPASSPORT_FACEMATCH must be one of ${FACEMATCH_MODES.join(", ")}, got "${config.facematch}"`)
   }
   return config
 }
 
-module.exports = { loadConfig }
+module.exports = { loadConfig, FACEMATCH_MODES }
