@@ -1,78 +1,115 @@
 from os import environ
+from unittest.mock import patch
 
-environ.setdefault("SENDGRIDFROMEMAIL", "person@sender.org")
-environ.setdefault("SENDGRIDAPIKEY", "testsendgridapikey")
-environ.setdefault("RECAPTCHASITEKEY", "testrecaptchasitekey")
-environ.setdefault("RECAPTCHASECRETKEY", "testrecaptchasecretkey")
+environ.setdefault("TURNSTILE_SITE_KEY", "test-site-key")
+environ.setdefault("TURNSTILE_SECRET_KEY", "test-secret-key")
+environ.setdefault("AWS_ACCESS_KEY_ID", "test")
+environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
+environ.setdefault("AWS_REGION", "us-east-1")
+environ.setdefault("SES_FROM_EMAIL", "secure-drop@example.org")
 environ.setdefault("NUMBEROFATTACHMENTS", "2")
 
 from datetime import datetime
 import server
 
+server.limiter.enabled = False
+client = server.app.test_client()
+
+
+# --- helpers -------------------------------------------------------------
+
 form = {
-    'message': 'hello',
-    'recipient': 'a@a.a',
-
-    'filename-0': 'file0.txt',
-    'attachment-0': 'content0',
-    'filename-1': 'file1.txt',
-    'attachment-1': 'content1',
+    "message": "hello",
+    "recipient": "legal",
+    "reference": "FY26-1234",
+    "filename-0": "file0.txt",
+    "attachment-0": "content0",
+    "filename-1": "file1.txt",
+    "attachment-1": "content1",
 }
-text, recipient, all_attachments = server.parse_form(form)
-assert 'hello' == text
-assert 'a@a.a' == recipient
-assert [
-    ('file0.txt', 'content0'),
-    ('file1.txt', 'content1'),
-] == all_attachments
+text, recipient, reference, all_attachments = server.parse_form(form)
+assert text == "hello"
+assert recipient == "legal"
+assert reference == "FY26-1234"
+assert all_attachments == [("file0.txt", "content0"), ("file1.txt", "content1")]
 
-# empty attachment fields are omitted
-form['attachment-1'] = ''
-text, recipient, all_attachments = server.parse_form(form)
-assert [
-    ('file0.txt', 'content0'),
-] == all_attachments
+form["attachment-1"] = ""
+assert server.parse_form(form)[3] == [("file0.txt", "content0")]
+
+assert server.sanitize_filename("../../etc/passwd") == "etcpasswd"
+
+assert server.valid_recipient("legal")
+assert not server.valid_recipient("nonlegal")
+
+assert server.get_identifier("devcon", datetime(2023, 1, 1, 12), 123) == "devcon:2023:01:01:12:00:00:123"
 
 
-assert server.valid_recipient('legal')
-assert not server.valid_recipient('nonlegal')
+# --- email ---------------------------------------------------------------
 
-assert 'devcon:2023:01:01:12:00:00:123' == server.get_identifier('devcon', datetime(2023, 1, 1, 12), 123)
+files = [{"filename": "myfile.txt", "attachment": "encrypted_file_content"}]
+email = server.create_email("someone@somewhere.org", "just:some:identifier", "line1<br />line2", files, "FY26-1234")
 
-toEmail = 'someone@somewhere.org'
-identifier = 'just:some:identifier'
-text = 'encrypted_blablabla'
-all_attachments = [
-    ('myfile.txt', 'encrypted_file_content'),
-]
+assert email["From"] == server.FROMEMAIL
+assert email["To"] == "someone@somewhere.org"
+assert email["Subject"] == "FY26-1234 Secure Form Submission just:some:identifier"
 
-email = server.create_email(toEmail, identifier, text, all_attachments)
+body, attachment = email.get_payload()
+assert body.get_payload() == "line1\nline2"
+assert attachment.get_filename() == "myfile.txt.pgp"
+assert attachment.get_payload(decode=True) == b"encrypted_file_content"
 
-assert server.FROMEMAIL == email.from_email.email
-assert toEmail == email.personalizations[0].tos[0]['email']
-assert "Secure Form Submission just:some:identifier" == email.subject.subject
-assert text == email.contents[0].content
-assert 1 == len(email.attachments)
+email = server.create_email("someone@somewhere.org", "just:some:identifier", "hi", [])
+assert email["Subject"] == "Secure Form Submission just:some:identifier"
+assert len(email.get_payload()) == 1
 
-a = email.attachments[0]
-assert "myfile.txt.pgp" == a.file_name.file_name
-assert "application/pgp-encrypted" == a.file_type.file_type
-assert "ZW5jcnlwdGVkX2ZpbGVfY29udGVudA==" == a.file_content.file_content
 
-two_attachments = [
-    ('myfile1.txt', 'encrypted_file_content1'),
-    ('myfile2.txt', 'encrypted_file_content2'),
-]
+# --- submit endpoint -----------------------------------------------------
 
-email = server.create_email(toEmail, identifier, text, two_attachments)
+def submit(payload, turnstile_ok=True):
+    def turnstile(token):
+        if not turnstile_ok:
+            raise ValueError("Turnstile verification failed.")
 
-a0 = email.attachments[0]
-assert "myfile2.txt.pgp" == a0.file_name.file_name
-assert "application/pgp-encrypted" == a0.file_type.file_type
-assert "ZW5jcnlwdGVkX2ZpbGVfY29udGVudDI=" == a0.file_content.file_content
+    with patch.object(server, "validate_turnstile", side_effect=turnstile), \
+         patch.object(server, "send_email") as send_email, \
+         patch.object(server, "send_identifier_to_kissflow", return_value=True) as kissflow:
+        response = client.post("/submit-encrypted-data", json=payload)
+    return response, send_email, kissflow
 
-a1 = email.attachments[1]
-assert "myfile1.txt.pgp" == a1.file_name.file_name
-assert "application/pgp-encrypted" == a1.file_type.file_type
-assert "ZW5jcnlwdGVkX2ZpbGVfY29udGVudDE=" == a1.file_content.file_content
 
+base = {
+    "cf-turnstile-response": "token",
+    "recipient": "legal",
+    "reference": "FY26-1234",
+    "message": "-----BEGIN PGP MESSAGE-----<br />...<br />-----END PGP MESSAGE-----",
+    "files": [{"filename": "passport.jpg", "attachment": "-----BEGIN PGP MESSAGE-----\n...\n-----END PGP MESSAGE-----"}],
+}
+
+response, send_email, kissflow = submit(base)
+assert response.status_code == 200
+assert response.json["status"] == "success"
+assert "legal:" in response.json["message"]
+sent = send_email.call_args.args[0]
+assert sent["To"] == server.Config.DEFAULT_RECIPIENT_EMAIL
+assert sent["Subject"].startswith("FY26-1234 Secure Form Submission legal:")
+assert sent.get_payload()[1].get_filename() == "passport.jpg.pgp"
+assert kissflow.call_args.args[0] == "FY26-1234"
+
+response, send_email, kissflow = submit({**base, "recipient": "devcon"})
+assert response.status_code == 200
+assert send_email.call_args.args[0]["To"] == "devcon@ethereum.org"
+assert not kissflow.called
+
+response, send_email, _ = submit({**base, "cf-turnstile-response": ""})
+assert response.status_code == 400
+assert not send_email.called
+
+response, send_email, _ = submit(base, turnstile_ok=False)
+assert response.status_code == 400
+assert not send_email.called
+
+response, send_email, _ = submit({**base, "recipient": "nobody"})
+assert response.json["status"] == "failure"
+assert not send_email.called
+
+print("all tests passed")
