@@ -34,7 +34,7 @@ function sampleProofs({ disclosedBytes = mrzBytes(), discloseMask = Array(88).fi
     ),
   ]
   if (facematch !== "off") {
-    proofs.push(synthProof("facematch", {}, { committedInputs: { facematch: { mode: facematch, environment: "production" } } }))
+    proofs.push(synthProof("facematch_ios_rk_ecdsa_ik_count_1_ik_ecdsa_p256_sha256", {}, { committedInputs: { facematch: { mode: facematch, environment: "production" } } }))
   }
   return JSON.parse(JSON.stringify(proofs))
 }

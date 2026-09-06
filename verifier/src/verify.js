@@ -15,7 +15,9 @@ const ROLES = [
   { role: "idData", matches: (name) => name.startsWith("sig_check_id_data") },
   { role: "integrity", matches: (name) => name.startsWith("data_check_integrity") },
   { role: "disclosure", matches: (name) => name === "disclose_bytes" },
-  { role: "facematch", matches: (name) => name === "facematch" },
+  // Face match circuits are named by the phone's attestation chain, e.g.
+  // facematch_ios_rk_ecdsa_ik_count_1_ik_ecdsa_p256_sha256.
+  { role: "facematch", matches: (name) => name.startsWith("facematch") },
 ]
 
 class BusyError extends Error {

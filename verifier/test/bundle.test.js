@@ -94,8 +94,9 @@ test("bundle records what the proof says and what verified it", async () => {
   assert.equal(bundle.artifacts.circuitManifest, manifest)
 
   assert.deepEqual(Object.keys(bundle.artifacts.verificationKeys).sort(), proofs.map((p) => p.name).sort())
-  assert.deepEqual(bundle.artifacts.verificationKeys.facematch, {
-    vkey: "vkey-facematch", vkeyHash: "0xvk-facematch", circuitHash: "0xhash-facematch", noirVersion: "1.0.0-beta.1", bbVersion: "5.0.0",
+  const fm = "facematch_ios_rk_ecdsa_ik_count_1_ik_ecdsa_p256_sha256"
+  assert.deepEqual(bundle.artifacts.verificationKeys[fm], {
+    vkey: `vkey-${fm}`, vkeyHash: `0xvk-${fm}`, circuitHash: `0xhash-${fm}`, noirVersion: "1.0.0-beta.1", bbVersion: "5.0.0",
   })
 
   const json = JSON.stringify(bundle)
