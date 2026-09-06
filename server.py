@@ -73,9 +73,20 @@ def get_identifier(recipient, now=None, randint=None):
         randint = Random().randint(1000, 9999)
     return f'{recipient}:{now.strftime("%Y:%m:%d:%H:%M:%S")}:{randint}'
 
-def create_email(to_email, identifier, text, all_attachments, reference=''):
+# One line at the end of every legal email telling legal where the passport
+# verification stands for this submission.
+PASSPORT_STATUS = {
+    'verified': "Passport verification: verified with zkPassport. Fields are in the encrypted block above; the proof bundle is attached.",
+    'not-attempted': "Passport verification: not attempted.",
+    'failed': "Passport verification: attempted, but the proof failed to verify. The applicant submitted without it.",
+    'unavailable': "Passport verification: attempted, but the verification service was unavailable. The applicant submitted without it.",
+}
+
+def create_email(to_email, identifier, text, all_attachments, reference='', passport=None):
     """
     Creates an email message with attachments for AWS SES.
+    For legal, `passport` is a dict with 'status' and, when verified, the
+    PGP-armored 'fields_block' and 'bundle' from the verifier.
     """
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
@@ -85,6 +96,12 @@ def create_email(to_email, identifier, text, all_attachments, reference=''):
     subject = f'Secure Form Submission {identifier}'
     if reference:
         subject = f'{reference} {subject}'
+    if passport:
+        if passport.get('fields_block'):
+            plain_text += '\n\n' + passport['fields_block']
+        plain_text += '\n\n' + PASSPORT_STATUS[passport['status']]
+        if passport['status'] == 'verified':
+            subject += ' [ZK-VERIFIED]'
     
     # Create message container
     msg = MIMEMultipart()
@@ -109,7 +126,12 @@ def create_email(to_email, identifier, text, all_attachments, reference=''):
             filename=f'{filename}.pgp'
         )
         msg.attach(part)
-    
+
+    if passport and passport.get('bundle'):
+        part = MIMEApplication(passport['bundle'].encode('utf-8'))
+        part.add_header('Content-Disposition', 'attachment', filename='passport-proof-bundle.json.pgp')
+        msg.attach(part)
+
     return msg
 
 def validate_turnstile(turnstile_response):
@@ -131,6 +153,31 @@ def validate_turnstile(turnstile_response):
         error_codes = result.get('error-codes', [])
         logging.error(f"Turnstile verification failed with error codes: {error_codes}")
         raise ValueError('Turnstile verification failed.')
+
+def verify_passport(passport, identifier, reference):
+    """
+    Sends a zkPassport proof to the verifier sidecar. Returns its JSON reply
+    ({'verified': False} or {'verified': True, 'fieldsBlockArmored', 'bundleArmored'}),
+    or None if the verifier could not be used right now.
+    """
+    try:
+        response = requests.post(
+            f"{VERIFIER_URL}/verify",
+            json={
+                'proofs': passport.get('proofs'),
+                'queryResult': passport.get('queryResult'),
+                'identifier': identifier,
+                'reference': reference,
+            },
+            timeout=60,
+        )
+    except requests.RequestException as e:
+        logging.error(f"Verifier unreachable for {identifier}: {e.__class__.__name__}")
+        return None
+    if response.status_code != 200:
+        logging.error(f"Verifier returned {response.status_code} for {identifier}")
+        return None
+    return response.json()
 
 def send_email(message):
     """
@@ -298,10 +345,11 @@ def find_aog_item_by_grant_id(grant_id):
     
     return None
 
-def update_aog_kyc_comments(item_id, legal_identifier):
+def update_aog_kyc_comments(item_id, legal_identifier, marker=None):
     """
     Updates the KYC_Comments field in a Kissflow AOG item with the legal identifier.
     Uses the admin PUT endpoint to update item details.
+    `marker` is appended to the entry, e.g. 'zk-verified'.
     """
     try:
         subdomain = os.getenv('KISSFLOW_SUBDOMAIN', 'ethereum')
@@ -343,6 +391,8 @@ def update_aog_kyc_comments(item_id, legal_identifier):
             suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
         timestamp = now.strftime(f'%a %b {day}{suffix} %Y %H:%M UTC')
         entry = f"{legal_identifier} - {timestamp}"
+        if marker:
+            entry += f" - {marker}"
 
         if current_kyc != "":
             current_item['KYC_Comments'] = current_kyc + "\n" + entry
@@ -368,7 +418,7 @@ def update_aog_kyc_comments(item_id, legal_identifier):
     
     return False
 
-def send_identifier_to_kissflow(grant_id, legal_identifier):
+def send_identifier_to_kissflow(grant_id, legal_identifier, marker=None):
     """
     Sends the legal identifier to the Kissflow AOG item based on Grant ID.
     """
@@ -384,12 +434,12 @@ def send_identifier_to_kissflow(grant_id, legal_identifier):
         return False
     
     # Update the KYC_Comments field
-    success = update_aog_kyc_comments(item_id, legal_identifier)
+    success = update_aog_kyc_comments(item_id, legal_identifier, marker)
     
     return success
 
 # Validate required environment variables
-required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL']
+required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL', 'VERIFIER_URL']
 validate_env_vars(required_env_vars)
 
 TURNSTILE_SITE_KEY = os.environ['TURNSTILE_SITE_KEY']
@@ -398,6 +448,7 @@ AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
 AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 AWS_REGION = os.environ['AWS_REGION']
 FROMEMAIL = os.environ['SES_FROM_EMAIL']
+VERIFIER_URL = os.environ['VERIFIER_URL'].rstrip('/')
 
 # Initialize AWS SES V2 client
 ses_client = boto3.client(
@@ -471,18 +522,46 @@ def submit():
         to_email = Config.DEFAULT_RECIPIENT_EMAIL if recipient == 'legal' else recipient + Config.EMAIL_DOMAIN
         identifier = get_identifier(recipient)
 
+        # Optional zkPassport proof, legal submissions only. The proof is opaque
+        # here: the verifier sidecar checks it and returns the passport fields
+        # and proof bundle already encrypted to the legal key.
+        passport = None
+        if recipient == 'legal':
+            proof = data.get('passport')
+            if proof:
+                result = verify_passport(proof, identifier, reference)
+                if result is None:
+                    return jsonify({
+                        'status': 'failure',
+                        'code': 'verification_unavailable',
+                        'message': 'Passport verification is not available right now. You can try again in a few minutes, or upload a photo of your passport instead.',
+                    }), 502
+                if not result.get('verified'):
+                    return jsonify({
+                        'status': 'failure',
+                        'code': 'proof_verification_failed',
+                        'message': 'Your passport proof could not be verified. You can try again, or upload a photo of your passport instead.',
+                    }), 400
+                passport = {'status': 'verified', 'fields_block': result['fieldsBlockArmored'], 'bundle': result['bundleArmored']}
+            else:
+                status = data.get('passportStatus')
+                passport = {'status': status if status in ('failed', 'unavailable') else 'not-attempted'}
+
         log_data = f"{date} - message to: {recipient}, identifier: {identifier}, length: {message_length}, file count: {file_count}"
         if reference:
             log_data += f", reference: {reference}"
+        if passport:
+            log_data += f", passport: {passport['status']}"
         logging.info(log_data)
 
-        message = create_email(to_email, identifier, message, files, reference)
+        message = create_email(to_email, identifier, message, files, reference, passport)
 
         send_email(message)
 
         # If this is a legal submission with a Grant ID (reference), send to Kissflow
         if recipient == 'legal' and reference:
-            kissflow_success = send_identifier_to_kissflow(reference, identifier)
+            marker = 'zk-verified' if passport['status'] == 'verified' else None
+            kissflow_success = send_identifier_to_kissflow(reference, identifier, marker)
             if kissflow_success:
                 logging.info(f"Successfully sent identifier {identifier} to Kissflow for Grant ID {reference}")
             else:
