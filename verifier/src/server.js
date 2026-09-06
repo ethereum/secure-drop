@@ -1,10 +1,10 @@
 const http = require("node:http")
 const fs = require("node:fs")
-const { RegistryClient } = require("@zkpassport/registry")
 const { loadConfig } = require("./config")
 const { loadEncryptionKey, encryptText } = require("./pgp")
-const { createVerifier, BusyError } = require("./verify")
+const { createVerifier, BusyError, ServiceUnavailableError } = require("./verify")
 const { fieldsBlock, buildBundle } = require("./bundle")
+const { setUpRegistry } = require("./registry")
 
 // A real submission is a few hundred kilobytes of proofs; anything near this
 // limit is not one. Identifiers and references are short human-readable IDs.
@@ -15,16 +15,19 @@ function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
+    let tooLarge = false
     req.on("data", (chunk) => {
+      if (tooLarge) return // keep draining so the 413 below can be delivered
       size += chunk.length
       if (size > MAX_BODY_BYTES) {
-        reject(Object.assign(new Error("Body too large"), { status: 413 }))
-        req.destroy()
+        tooLarge = true
+        chunks.length = 0
         return
       }
       chunks.push(chunk)
     })
     req.on("end", () => {
+      if (tooLarge) return reject(Object.assign(new Error("Body too large"), { status: 413 }))
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")))
       } catch {
@@ -36,7 +39,9 @@ function readJsonBody(req) {
 }
 
 function send(res, status, body) {
-  res.writeHead(status, { "content-type": "application/json" })
+  const headers = { "content-type": "application/json" }
+  if (status === 413) headers.connection = "close"
+  res.writeHead(status, headers)
   res.end(JSON.stringify(body))
 }
 
@@ -91,6 +96,10 @@ function createApp({ config, legalKey, verifier, registryClient, log = console.l
         log(`verify ${identifier}: busy`)
         return send(res, 503, { error: "busy" })
       }
+      if (error instanceof ServiceUnavailableError) {
+        log(`verify ${identifier}: upstream services unreachable${error.cause ? ` (${error.cause.name}: ${error.cause.message})` : ""}`)
+        return send(res, 503, { error: "verification_unavailable" })
+      }
       log(`verify ${identifier}: error ${error.name}: ${error.message}`)
       return send(res, 500, { error: "verification_error" })
     }
@@ -101,8 +110,8 @@ async function main() {
   const config = loadConfig()
   fs.mkdirSync("/tmp/zkp", { recursive: true })
   const legalKey = await loadEncryptionKey(config.publicKeysJsPath, "legal")
-  const verifier = createVerifier(config)
-  const registryClient = new RegistryClient({ chainId: 1 })
+  const registryClient = await setUpRegistry()
+  const verifier = createVerifier({ ...config, servicesReachable: registryClient.servicesReachable })
   const server = http.createServer(createApp({ config, legalKey, verifier, registryClient }))
   server.listen(config.port, () => console.log(`verifier listening on ${config.port}, face match ${config.facematch}`))
 }

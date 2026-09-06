@@ -1,8 +1,8 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
-const { createVerifier, fieldsFromProof, BusyError, MAX_QUEUE } = require("../src/verify")
+const { createVerifier, fieldsFromProof, BusyError, ServiceUnavailableError, DISCLOSED_BYTES_LENGTH, MAX_QUEUE } = require("../src/verify")
 const { DISCLOSED_FIELDS } = require("../src/query")
-const { settings, mrzBytes, sampleProofs, clientResult, expectedFields } = require("./fixtures")
+const { settings, expectedMask, mrzBytes, disclosedBytesFor, sampleProofs, clientResult, expectedFields } = require("./fixtures")
 
 function fakeSdk(verified) {
   const calls = []
@@ -39,8 +39,11 @@ test("rejects anything that is not the proof set our request produces", async ()
     { proofs: good.map((p) => ({ ...p, version: "1.0" })), queryResult: {} },
     { proofs: good.map((p) => ({ ...p, proof: "0x" + p.proof })), queryResult: {} },
     { proofs: good.map((p) => ({ ...p, proof: "ab".repeat(200 * 1024) })), queryResult: {} },
-    { proofs: sampleProofs({ disclosedBytes: mrzBytes().slice(0, 87) }), queryResult: {} },
-    { proofs: sampleProofs({ discloseMask: [...Array(46).fill(1), ...Array(7).fill(0), ...Array(35).fill(1)] }), queryResult: {} },
+    { proofs: good.map((p) => ({ ...p, proof: "ab" })), queryResult: {} }, // too short for its public inputs
+    { proofs: sampleProofs({ disclosedBytes: disclosedBytesFor(mrzBytes()).slice(0, DISCLOSED_BYTES_LENGTH - 1) }), queryResult: {} },
+    { proofs: sampleProofs({ discloseMask: expectedMask.map((b, i) => (i >= 46 && i < 53 ? 0 : b)) }), queryResult: {} }, // part of the passport number hidden
+    { proofs: sampleProofs({ discloseMask: expectedMask.map((b, i) => (i === 53 ? 1 : b)) }), queryResult: {} }, // reveals more than asked
+    { proofs: sampleProofs({ disclosedBytes: disclosedBytesFor(mrzBytes()).map((b, i) => (i === 53 ? 52 : b)) }), queryResult: {} }, // data where the mask says none
   ]
   for (const input of bad) {
     assert.deepEqual(await verifyProof(input), { verified: false })
@@ -83,9 +86,9 @@ test("an unverified proof yields only verified:false", async () => {
 
 test("a non-passport document or a blank field is rejected even if the SDK says verified", async () => {
   const { verifyProof } = createVerifier({ ...settings, zkPassport: fakeSdk(true) })
-  const idCard = sampleProofs({ disclosedBytes: mrzBytes({ documentCode: "I<" }) })
+  const idCard = sampleProofs({ mrz: mrzBytes({ documentCode: "I<" }) })
   assert.deepEqual(await verifyProof({ proofs: idCard, queryResult: clientResult }), { verified: false })
-  const blankName = sampleProofs({ disclosedBytes: mrzBytes({ name: "<<" }) })
+  const blankName = sampleProofs({ mrz: mrzBytes({ name: "<<" }) })
   assert.deepEqual(await verifyProof({ proofs: blankName, queryResult: clientResult }), { verified: false })
 })
 
@@ -101,12 +104,23 @@ test("dates and gender are read from the passport bytes with plausibility checks
   assert.equal(fieldsFromProof(mrzBytes({ sex: "X" }), today), null)
 })
 
-test("SDK errors propagate as service errors", async () => {
+test("an SDK failure is the proof's fault when upstream services are reachable, ours when they are not", async () => {
   const throwing = (error) => ({ verify: async () => { throw error } })
-  for (const error of [new TypeError("fetch failed"), new Error("registry unreachable")]) {
-    const { verifyProof } = createVerifier({ ...settings, zkPassport: throwing(error) })
-    await assert.rejects(verifyProof({ proofs: sampleProofs(), queryResult: clientResult }), error)
-  }
+  const input = () => ({ proofs: sampleProofs(), queryResult: clientResult })
+
+  let verifier = createVerifier({ ...settings, zkPassport: throwing(new Error("Circuit not found in manifest")), servicesReachable: async () => true })
+  assert.deepEqual(await verifier.verifyProof(input()), { verified: false })
+
+  verifier = createVerifier({ ...settings, zkPassport: throwing(new TypeError("fetch failed")), servicesReachable: async () => false })
+  await assert.rejects(verifier.verifyProof(input()), ServiceUnavailableError)
+
+  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), servicesReachable: async () => false })
+  await assert.rejects(verifier.verifyProof(input()), ServiceUnavailableError)
+
+  let probes = 0
+  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(true), servicesReachable: async () => { probes++; return true } })
+  assert.equal((await verifier.verifyProof(input())).verified, true)
+  assert.equal(probes, 0, "reachability is only checked after a failure")
 })
 
 test("verifications run one at a time and the line is bounded", async () => {

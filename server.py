@@ -156,9 +156,10 @@ def validate_turnstile(turnstile_response):
 
 def verify_passport(passport, identifier, reference):
     """
-    Sends a zkPassport proof to the verifier sidecar. Returns its JSON reply
-    ({'verified': False} or {'verified': True, 'fieldsBlockArmored', 'bundleArmored'}),
-    or None if the verifier could not be used right now.
+    Sends a zkPassport proof to the verifier sidecar.
+    Returns ('verified', reply) with the PGP-armored 'fieldsBlockArmored' and
+    'bundleArmored', ('rejected', None) when the proof did not verify, or
+    ('unavailable', None) when the verifier could not be used right now.
     """
     try:
         response = requests.post(
@@ -171,13 +172,23 @@ def verify_passport(passport, identifier, reference):
             },
             timeout=60,
         )
-    except requests.RequestException as e:
-        logging.error(f"Verifier unreachable for {identifier}: {e.__class__.__name__}")
-        return None
-    if response.status_code != 200:
-        logging.error(f"Verifier returned {response.status_code} for {identifier}")
-        return None
-    return response.json()
+        if 400 <= response.status_code < 500:
+            # The verifier refused the request itself; retrying will not help.
+            logging.warning(f"Verifier rejected the request for {identifier}: {response.status_code}")
+            return 'rejected', None
+        if response.status_code != 200:
+            logging.error(f"Verifier returned {response.status_code} for {identifier}")
+            return 'unavailable', None
+        reply = response.json()
+    except (requests.RequestException, ValueError) as e:
+        logging.error(f"Verifier unusable for {identifier}: {e.__class__.__name__}")
+        return 'unavailable', None
+    if not reply.get('verified'):
+        return 'rejected', None
+    if not (isinstance(reply.get('fieldsBlockArmored'), str) and isinstance(reply.get('bundleArmored'), str)):
+        logging.error(f"Verifier reply for {identifier} is missing the encrypted blocks")
+        return 'unavailable', None
+    return 'verified', reply
 
 def send_email(message):
     """
@@ -529,20 +540,20 @@ def submit():
         if recipient == 'legal':
             proof = data.get('passport')
             if proof:
-                result = verify_passport(proof, identifier, reference)
-                if result is None:
+                outcome, reply = verify_passport(proof, identifier, reference) if isinstance(proof, dict) else ('rejected', None)
+                if outcome == 'unavailable':
                     return jsonify({
                         'status': 'failure',
                         'code': 'verification_unavailable',
                         'message': 'Passport verification is not available right now. You can try again in a few minutes, or upload a photo of your passport instead.',
                     }), 502
-                if not result.get('verified'):
+                if outcome == 'rejected':
                     return jsonify({
                         'status': 'failure',
                         'code': 'proof_verification_failed',
                         'message': 'Your passport proof could not be verified. You can try again, or upload a photo of your passport instead.',
                     }), 400
-                passport = {'status': 'verified', 'fields_block': result['fieldsBlockArmored'], 'bundle': result['bundleArmored']}
+                passport = {'status': 'verified', 'fields_block': reply['fieldsBlockArmored'], 'bundle': reply['bundleArmored']}
             else:
                 status = data.get('passportStatus')
                 passport = {'status': status if status in ('failed', 'unavailable') else 'not-attempted'}

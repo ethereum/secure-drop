@@ -1,17 +1,25 @@
 // Shared synthetic passport and proof set for the sidecar tests. Shaped like
 // what the zkPassport app produces in default mode after a JSON round trip.
-const { getNumberOfPublicInputs, getServiceScopeHash, getScopeHash } = require("@zkpassport/utils")
+const { getNumberOfPublicInputs, getServiceScopeHash, getScopeHash, getDisclosedBytesFromMrzAndMask } = require("@zkpassport/utils")
+const { buildExpectedQuery } = require("../src/query")
+const { expectedMaskFor } = require("../src/verify")
 
 const settings = { domain: "secure-drop.ethereum.org", scope: "ef-onboarding", facematch: "strict", gitSha: "abc1234" }
 const proofDate = new Date("2026-09-05T13:58:00Z")
 const certificateRoot = 0xabc123n
+const expectedMask = expectedMaskFor(buildExpectedQuery(settings))
 
 // A passport's machine-readable zone for JANE ANN DOE, Irish, born 1990-05-17,
-// expiring 2031-01-02. Line 2: docno(9) chk nat(3) dob(6) chk sex expiry(6) chk personal(14) chk composite.
+// expiring 2031-01-02, as 88 bytes. Line 2: docno(9) chk nat(3) dob(6) chk sex expiry(6) chk personal(14) chk composite.
 function mrzBytes({ documentCode = "P<", name = "DOE<<JANE<ANN", birth = "900517", sex = "F", expiry = "310102" } = {}) {
   const line1 = (documentCode + "IRL" + name + "<".repeat(44)).slice(0, 44)
   const line2 = "P12345678" + "4" + "IRL" + birth + "3" + sex + expiry + "7" + "<".repeat(14) + "<" + "6"
   return Array.from(new TextEncoder().encode(line1 + line2))
+}
+
+// The 90-byte array the app commits to: the zone with unrevealed bytes zeroed.
+function disclosedBytesFor(mrz, mask = expectedMask) {
+  return Array.from(getDisclosedBytesFromMrzAndMask(String.fromCharCode(...mrz), mask))
 }
 
 // A proof string as the app produces it: hex, no 0x, public inputs first.
@@ -22,7 +30,7 @@ function synthProof(name, publicInputs = {}, extra = {}) {
   return { proof: inputs + "ab".repeat(64), name, version: "1.0.0", vkeyHash: `0xvk-${name}`, ...extra }
 }
 
-function sampleProofs({ disclosedBytes = mrzBytes(), discloseMask = Array(88).fill(1), facematch = "strict" } = {}) {
+function sampleProofs({ mrz = mrzBytes(), discloseMask = expectedMask, disclosedBytes = disclosedBytesFor(mrz, discloseMask), facematch = "strict" } = {}) {
   const proofs = [
     synthProof("sig_check_dsc_tbs_1000_rsa_pkcs_2048_sha256", { 0: certificateRoot }),
     synthProof("sig_check_id_data_tbs_700_rsa_pkcs_2048_sha256"),
@@ -60,4 +68,4 @@ const expectedFields = {
   document_type: "passport",
 }
 
-module.exports = { settings, proofDate, certificateRoot, mrzBytes, synthProof, sampleProofs, clientResult, expectedFields }
+module.exports = { settings, proofDate, certificateRoot, expectedMask, mrzBytes, disclosedBytesFor, synthProof, sampleProofs, clientResult, expectedFields }

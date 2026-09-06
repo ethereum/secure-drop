@@ -1,8 +1,9 @@
 const { ZKPassport } = require("@zkpassport/sdk")
-const { DisclosedData } = require("@zkpassport/utils")
+const { DisclosedData, getDiscloseMask, getProofData, getNumberOfPublicInputs } = require("@zkpassport/utils")
 const { buildExpectedQuery, DISCLOSED_FIELDS } = require("./query")
 
-const MRZ_LENGTH = 88 // two 44-character lines of a passport's machine-readable zone
+const DISCLOSED_BYTES_LENGTH = 90 // the SDK pads a passport's 88-character zone to 90
+const PASSPORT_MRZ_LENGTH = 88
 const MAX_PROOF_HEX = 256 * 1024 // characters; a real proof is well under 64k
 const MAX_QUERY_RESULT_JSON = 64 * 1024
 const MAX_QUEUE = 4
@@ -16,7 +17,7 @@ const ROLES = [
   { role: "integrity", matches: (name) => name.startsWith("data_check_integrity") },
   { role: "disclosure", matches: (name) => name === "disclose_bytes" },
   // Face match circuits are named by the phone's attestation chain, e.g.
-  // facematch_ios_rk_ecdsa_ik_count_1_ik_ecdsa_p256_sha256.
+  // facematch_ios or facematch_android_rk_ecdsa_ik_count_1_ik_ecdsa_p256_sha256.
   { role: "facematch", matches: (name) => name.startsWith("facematch") },
 ]
 
@@ -27,8 +28,29 @@ class BusyError extends Error {
   }
 }
 
+// Raised when the SDK could not verify and the services it depends on (the
+// registry RPC, the circuits CDN) are unreachable, so the failure is ours.
+class ServiceUnavailableError extends Error {
+  constructor(cause) {
+    super("Verification service unavailable")
+    this.name = "ServiceUnavailableError"
+    this.cause = cause
+  }
+}
+
 function isBytes(value, length, allowed) {
   return Array.isArray(value) && value.length === length && value.every((b) => Number.isInteger(b) && allowed(b))
+}
+
+// The proof string must decode to exactly the public inputs the SDK expects
+// for that circuit; otherwise the SDK throws deep inside verification.
+function hasExpectedPublicInputs(p) {
+  try {
+    const { publicInputs } = getProofData(p.proof, getNumberOfPublicInputs(p.name))
+    return publicInputs.length === getNumberOfPublicInputs(p.name) && publicInputs.every((x) => /^0x[0-9a-f]{64}$/.test(x))
+  } catch {
+    return false
+  }
 }
 
 function wellFormedProof(p) {
@@ -37,7 +59,8 @@ function wellFormedProof(p) {
   if (typeof p.name !== "string" || typeof p.version !== "string" || !/^\d+\.\d+\.\d+$/.test(p.version)) return false
   // Our request never produces these. Their names make the SDK verify
   // on-chain through a third-party RPC instead of locally.
-  return !p.name.includes("evm")
+  if (p.name.includes("evm")) return false
+  return hasExpectedPublicInputs(p)
 }
 
 // Maps each proof to its role. Returns null unless every required role is
@@ -55,18 +78,26 @@ function classifyProofs(proofs, facematchOn) {
   return byRole
 }
 
-// The disclosure proof must commit to a full, unmasked passport zone: our
-// query discloses every field, so any masked byte means a tampered prover.
-function disclosedBytesOf(disclosureProof) {
+// The mask the SDK builds for our query on a passport: every field we ask for
+// is revealed, the check digits and the unused tail are not.
+function expectedMaskFor(expectedQuery) {
+  return getDiscloseMask({ mrz: "x".repeat(PASSPORT_MRZ_LENGTH) }, expectedQuery)
+}
+
+// The disclosure proof must commit to exactly the bytes our query reveals: a
+// different mask means a prover that hid part of a field.
+function disclosedBytesOf(disclosureProof, expectedMask) {
   const inputs = disclosureProof.committedInputs?.disclose_bytes
-  if (!inputs || !isBytes(inputs.disclosedBytes, MRZ_LENGTH, (b) => b >= 0 && b <= 255)) return null
-  if (!isBytes(inputs.discloseMask, MRZ_LENGTH, (b) => b === 1)) return null
+  if (!inputs || !isBytes(inputs.disclosedBytes, DISCLOSED_BYTES_LENGTH, (b) => b >= 0 && b <= 255)) return null
+  if (!isBytes(inputs.discloseMask, DISCLOSED_BYTES_LENGTH, (b) => b === 0 || b === 1)) return null
+  if (inputs.discloseMask.some((bit, i) => bit !== expectedMask[i])) return null
+  if (inputs.disclosedBytes.some((byte, i) => expectedMask[i] === 0 && byte !== 0)) return null
   return inputs.disclosedBytes
 }
 
-function looksLikeProofSubmission({ proofs, queryResult }, facematch) {
+function looksLikeProofSubmission({ proofs, queryResult }, facematch, expectedMask) {
   const roles = classifyProofs(proofs, facematch !== "off")
-  if (!roles || disclosedBytesOf(roles.disclosure) === null) return false
+  if (!roles || disclosedBytesOf(roles.disclosure, expectedMask) === null) return false
   if (roles.facematch && roles.facematch.committedInputs?.facematch?.mode !== facematch) return false
   if (queryResult === null || typeof queryResult !== "object") return false
   return JSON.stringify(queryResult).length <= MAX_QUERY_RESULT_JSON
@@ -117,8 +148,12 @@ function satisfiesConstraints(fields, expectedQuery) {
   return Object.entries(expectedQuery).every(([name, rule]) => rule?.eq === undefined || fields[name] === rule.eq)
 }
 
-function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(domain) }) {
+// `servicesReachable` answers whether the registry RPC and circuits CDN can be
+// reached right now. It decides whether an SDK failure is the proof's fault or
+// ours, and is only consulted after a failure.
+function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(domain), servicesReachable = async () => true }) {
   const expectedQuery = buildExpectedQuery({ domain, facematch })
+  const expectedMask = expectedMaskFor(expectedQuery)
   let queue = Promise.resolve()
   let waiting = 0
 
@@ -132,25 +167,46 @@ function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(
     return run
   }
 
-  // Resolves { verified: false } for anything malformed or unproven. Throws
-  // BusyError when the line is full, and rethrows SDK errors, which after the
-  // shape checks above can only mean the service itself has a problem.
-  async function verifyProof({ proofs, queryResult }) {
-    if (!looksLikeProofSubmission({ proofs, queryResult }, facematch)) return { verified: false }
+  async function notVerified(cause) {
+    if (!(await servicesReachable())) throw new ServiceUnavailableError(cause)
+    return { verified: false }
+  }
 
-    // originalQuery is ours, never the client's.
-    const result = await serialized(() =>
-      zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope, writingDirectory: "/tmp/zkp" }),
-    )
-    if (!result.verified) return { verified: false }
+  // Resolves { verified: false } for anything malformed or unproven. Throws
+  // BusyError when the line is full and ServiceUnavailableError when the SDK
+  // failed while its upstream services were unreachable.
+  async function verifyProof({ proofs, queryResult }) {
+    if (!looksLikeProofSubmission({ proofs, queryResult }, facematch, expectedMask)) return { verified: false }
+
+    let result
+    try {
+      // originalQuery is ours, never the client's.
+      result = await serialized(() =>
+        zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope, writingDirectory: "/tmp/zkp" }),
+      )
+    } catch (error) {
+      if (error instanceof BusyError) throw error
+      return notVerified(error)
+    }
+    if (!result.verified) return notVerified()
 
     const roles = classifyProofs(proofs, facematch !== "off")
-    const fields = fieldsFromProof(disclosedBytesOf(roles.disclosure))
+    const fields = fieldsFromProof(disclosedBytesOf(roles.disclosure, expectedMask))
     if (!fields || !satisfiesConstraints(fields, expectedQuery)) return { verified: false }
     return { verified: true, fields }
   }
 
-  return { verifyProof, expectedQuery }
+  return { verifyProof, expectedQuery, expectedMask }
 }
 
-module.exports = { createVerifier, classifyProofs, looksLikeProofSubmission, fieldsFromProof, BusyError, MRZ_LENGTH, MAX_QUEUE }
+module.exports = {
+  createVerifier,
+  classifyProofs,
+  looksLikeProofSubmission,
+  fieldsFromProof,
+  expectedMaskFor,
+  BusyError,
+  ServiceUnavailableError,
+  DISCLOSED_BYTES_LENGTH,
+  MAX_QUEUE,
+}

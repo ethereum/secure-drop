@@ -72,6 +72,8 @@ class FakeVerifierResponse:
         self._body = body
 
     def json(self):
+        if self._body is None:
+            raise ValueError("No JSON object could be decoded")
         return self._body
 
 
@@ -167,11 +169,25 @@ assert response.status_code == 400
 assert response.json["code"] == "proof_verification_failed"
 assert not send_email.called
 
-for down in (FakeVerifierResponse(503, {"error": "busy"}), FakeVerifierResponse(500, {"error": "verification_error"}), server.requests.ConnectionError()):
+for down in (
+    FakeVerifierResponse(503, {"error": "busy"}),
+    FakeVerifierResponse(503, {"error": "verification_unavailable"}),
+    FakeVerifierResponse(500, {"error": "verification_error"}),
+    FakeVerifierResponse(200, None),  # not JSON
+    FakeVerifierResponse(200, {"verified": True}),  # missing the encrypted blocks
+    server.requests.ConnectionError(),
+):
     response, send_email, _ = submit({**base, "passport": proof}, verifier=down)
-    assert response.status_code == 502
+    assert response.status_code == 502, down
     assert response.json["code"] == "verification_unavailable"
     assert not send_email.called
+
+# A request the verifier itself refuses, or a proof field that is not an object, is a bad proof, not an outage.
+response, send_email, _ = submit({**base, "passport": proof}, verifier=FakeVerifierResponse(400, {"error": "bad_request"}))
+assert response.status_code == 400 and response.json["code"] == "proof_verification_failed"
+response, send_email, _ = submit({**base, "passport": "yes"})
+assert response.status_code == 400 and response.json["code"] == "proof_verification_failed"
+assert not send_email.called
 
 for status in ("failed", "unavailable"):
     response, send_email, kissflow = submit({**base, "passportStatus": status})

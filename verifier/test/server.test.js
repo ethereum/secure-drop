@@ -3,7 +3,7 @@ const assert = require("node:assert/strict")
 const http = require("node:http")
 const openpgp = require("openpgp")
 const { createApp, MAX_BODY_BYTES } = require("../src/server")
-const { BusyError } = require("../src/verify")
+const { BusyError, ServiceUnavailableError } = require("../src/verify")
 const { settings, sampleProofs, clientResult, expectedFields } = require("./fixtures")
 
 const manifest = { version: "1.0.0", root: "0xmanifestroot", circuits: Object.fromEntries(sampleProofs().map((p) => [p.name, { hash: `0xhash-${p.name}`, size: 1 }])) }
@@ -62,8 +62,7 @@ test("bad requests", async () => {
   assert.deepEqual(await post("/verify", "{not json", true), { status: 400, body: { error: "bad_request" } })
   assert.deepEqual(await post("/verify", { ...submission(), identifier: undefined }), { status: 400, body: { error: "bad_request" } })
   assert.deepEqual(await post("/verify", { ...submission(), identifier: "x".repeat(201) }), { status: 400, body: { error: "bad_request" } })
-  const huge = await post("/verify", JSON.stringify({ ...submission(), pad: "x".repeat(MAX_BODY_BYTES) }), true).catch((e) => ({ status: "closed", body: e.message }))
-  assert.ok(huge.status === 413 || huge.status === "closed")
+  assert.deepEqual(await post("/verify", JSON.stringify({ ...submission(), pad: "x".repeat(MAX_BODY_BYTES) }), true), { status: 413, body: { error: "bad_request" } })
 })
 
 test("a proof that does not verify yields verified:false and nothing else", async () => {
@@ -98,9 +97,11 @@ test("a verified proof yields both blocks encrypted to the legal key", async () 
   assert.match(logs.join("\n"), /verified \(\d+ ms\)/)
 })
 
-test("busy and failing verifier map to 503 and 500", async () => {
+test("busy, unavailable, and failing verifier map to 503, 503, and 500", async () => {
   behaviour = new BusyError()
   assert.deepEqual(await post("/verify", submission()), { status: 503, body: { error: "busy" } })
+  behaviour = new ServiceUnavailableError(new TypeError("fetch failed"))
+  assert.deepEqual(await post("/verify", submission()), { status: 503, body: { error: "verification_unavailable" } })
   behaviour = new TypeError("fetch failed")
   assert.deepEqual(await post("/verify", submission()), { status: 500, body: { error: "verification_error" } })
 })
