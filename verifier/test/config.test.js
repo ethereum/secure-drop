@@ -16,6 +16,7 @@ test("loads with defaults", () => {
     facematch: "strict",
     ethRpcUrl: "http://rpc.internal:8545",
     publicKeysJsPath: "/app/static/js/public-keys.js",
+    gitSha: "unknown",
   })
 })
 

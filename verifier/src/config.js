@@ -16,6 +16,7 @@ function loadConfig(env = process.env) {
     facematch: env.ZKPASSPORT_FACEMATCH || "strict",
     ethRpcUrl: env.ETH_RPC_URL,
     publicKeysJsPath: path.resolve(env.PUBLIC_KEYS_JS_PATH || "/app/static/js/public-keys.js"),
+    gitSha: env.GIT_SHA || "unknown",
   }
 
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
