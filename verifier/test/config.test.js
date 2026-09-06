@@ -5,7 +5,6 @@ const { loadConfig, FACEMATCH_MODES } = require("../src/config")
 const minimal = {
   ZKPASSPORT_DOMAIN: "localhost",
   ZKPASSPORT_SCOPE: "ef-onboarding",
-  ETH_RPC_URL: "http://rpc.internal:8545",
 }
 
 test("loads with defaults", () => {
@@ -14,14 +13,13 @@ test("loads with defaults", () => {
     domain: "localhost",
     scope: "ef-onboarding",
     facematch: "strict",
-    ethRpcUrl: "http://rpc.internal:8545",
     publicKeysJsPath: "/app/static/js/public-keys.js",
     gitSha: "unknown",
   })
 })
 
 test("reports every missing variable at once", () => {
-  assert.throws(() => loadConfig({ ZKPASSPORT_SCOPE: "x" }), /ZKPASSPORT_DOMAIN, ETH_RPC_URL/)
+  assert.throws(() => loadConfig({}), /ZKPASSPORT_DOMAIN, ZKPASSPORT_SCOPE/)
 })
 
 test("validates the face match mode", () => {

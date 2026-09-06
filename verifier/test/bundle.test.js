@@ -18,9 +18,8 @@ const fakeRegistry = {
     assert.equal(version, "1.0.0")
     return manifest
   },
-  async getPackagedCircuit(name, m) {
-    assert.equal(m, manifest)
-    return { name, vkey: `vkey-${name}`, vkey_hash: `0xvk-${name}`, hash: m.circuits[name].hash, noir_version: "1.0.0-beta.1", bb_version: "5.0.0", bytecode: "x".repeat(100000) }
+  async getPackagedCircuit() {
+    throw new Error("the bundle must not download packaged circuits")
   },
   async getCertificateRegistryAddress() { return "0xcert" },
   async getCircuitRegistryAddress() { return "0xcirc" },
@@ -93,14 +92,12 @@ test("bundle records what the proof says and what verified it", async () => {
   assert.equal(bundle.artifacts.rootRegistry, "0xroot")
   assert.equal(bundle.artifacts.circuitManifest, manifest)
 
-  assert.deepEqual(Object.keys(bundle.artifacts.verificationKeys).sort(), proofs.map((p) => p.name).sort())
+  assert.deepEqual(Object.keys(bundle.artifacts.circuits).sort(), proofs.map((p) => p.name).sort())
   const fm = "facematch_ios_rk_ecdsa_ik_count_1_ik_ecdsa_p256_sha256"
-  assert.deepEqual(bundle.artifacts.verificationKeys[fm], {
-    vkey: `vkey-${fm}`, vkeyHash: `0xvk-${fm}`, circuitHash: `0xhash-${fm}`, noirVersion: "1.0.0-beta.1", bbVersion: "5.0.0",
-  })
+  assert.deepEqual(bundle.artifacts.circuits[fm], { circuitHash: `0xhash-${fm}`, vkeyHash: `0xvk-${fm}` })
+  assert.equal(bundle.artifacts.verificationKeys, undefined)
 
   const json = JSON.stringify(bundle)
-  assert.ok(!json.includes("bytecode"))
   assert.ok(json.length < 1024 * 1024)
   assert.deepEqual(JSON.parse(json).submission, bundle.submission)
 })

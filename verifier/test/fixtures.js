@@ -19,7 +19,7 @@ function synthProof(name, publicInputs = {}, extra = {}) {
   const field = (v) => BigInt(v).toString(16).padStart(64, "0")
   const count = getNumberOfPublicInputs(name)
   const inputs = Array.from({ length: count }, (_, i) => field(publicInputs[i] ?? 0)).join("")
-  return { proof: inputs + "ab".repeat(64), name, version: "1.0.0", ...extra }
+  return { proof: inputs + "ab".repeat(64), name, version: "1.0.0", vkeyHash: `0xvk-${name}`, ...extra }
 }
 
 function sampleProofs({ disclosedBytes = mrzBytes(), discloseMask = Array(88).fill(1), facematch = "strict" } = {}) {

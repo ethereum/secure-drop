@@ -1,6 +1,6 @@
 const path = require("node:path")
 
-const REQUIRED = ["ZKPASSPORT_DOMAIN", "ZKPASSPORT_SCOPE", "ETH_RPC_URL"]
+const REQUIRED = ["ZKPASSPORT_DOMAIN", "ZKPASSPORT_SCOPE"]
 const FACEMATCH_MODES = ["strict", "regular", "off"]
 
 function loadConfig(env = process.env) {
@@ -14,7 +14,6 @@ function loadConfig(env = process.env) {
     domain: env.ZKPASSPORT_DOMAIN,
     scope: env.ZKPASSPORT_SCOPE,
     facematch: env.ZKPASSPORT_FACEMATCH || "strict",
-    ethRpcUrl: env.ETH_RPC_URL,
     publicKeysJsPath: path.resolve(env.PUBLIC_KEYS_JS_PATH || "/app/static/js/public-keys.js"),
     gitSha: env.GIT_SHA || "unknown",
   }

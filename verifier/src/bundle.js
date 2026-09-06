@@ -68,26 +68,22 @@ function hex(value) {
   return "0x" + value.toString(16).padStart(64, "0")
 }
 
-// Everything needed to verify this proof again later, independent of zkPassport's
-// servers: the proof, our query, the roots it was checked against, the
-// verification keys, and the software versions that did the checking.
+// What is needed to verify this proof again later: the proof, our query, the
+// roots it was checked against, the identity of every circuit involved, and the
+// software versions that did the checking.
 async function buildBundle({ proofs, queryResult, expectedQuery, identifier, reference, verifiedAt, config, registryClient }) {
   const roles = classifyProofs(proofs, config.facematch !== "off")
   if (!roles) throw new Error("Cannot bundle a proof set that did not pass verification checks")
   const { certificate: certificateProof, disclosure: disclosureProof } = roles
   const circuitVersion = proofs[0].version
 
+  // The manifest names every circuit of this version with its hash. The
+  // verification keys themselves are not stored; they can be fetched again by
+  // hash from zkPassport's CDN or IPFS, and each proof carries its own vkeyHash.
   const manifest = await registryClient.getCircuitManifest(undefined, { version: circuitVersion })
-  const verificationKeys = {}
+  const circuits = {}
   for (const proof of proofs) {
-    const circuit = await registryClient.getPackagedCircuit(proof.name, manifest)
-    verificationKeys[proof.name] = {
-      vkey: circuit.vkey,
-      vkeyHash: circuit.vkey_hash,
-      circuitHash: circuit.hash,
-      noirVersion: circuit.noir_version,
-      bbVersion: circuit.bb_version,
-    }
+    circuits[proof.name] = { circuitHash: manifest.circuits[proof.name]?.hash ?? null, vkeyHash: proof.vkeyHash ?? null }
   }
 
   const proofDate = getCurrentDateFromDisclosureProof(publicInputsOf(disclosureProof))
@@ -115,7 +111,7 @@ async function buildBundle({ proofs, queryResult, expectedQuery, identifier, ref
     proofDate: proofDate.toISOString(),
     artifacts: {
       circuitManifest: manifest,
-      verificationKeys,
+      circuits,
       certificateRegistry: {
         root: hex(getMerkleRootFromDSCProof(publicInputsOf(certificateProof))),
         validAt: proofDate.toISOString(),
@@ -130,7 +126,7 @@ async function buildBundle({ proofs, queryResult, expectedQuery, identifier, ref
       rootRegistry: registryClient.getRootRegistryAddress(),
     },
     notes:
-      "Re-verify with the secure-drop repo at the recorded git sha. Run the SDK's verify() with query as originalQuery, queryResult, proofs, and scope. The SDK compares the proof date to the current clock, so pass validity = (now - proofDate) + 604800 seconds. The certificate root was valid on the Ethereum mainnet registry at proofDate; the circuit manifest root identifies the circuit set.",
+      "Re-verify with the secure-drop repo at the recorded git sha. Run the SDK's verify() with query as originalQuery, queryResult, proofs, and scope. The SDK compares the proof date to the current clock, so pass validity = (now - proofDate) + 604800 seconds. The certificate root was valid on the Ethereum mainnet registry at proofDate. Verification keys are not included; fetch them by circuit hash from the circuits CDN or IPFS, or rebuild them from the open-source circuits at circuitVersion.",
   }
 }
 
