@@ -8,12 +8,17 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build:browser": "node scripts/build-browser-sdk.js"
   },
   "dependencies": {
     "@zkpassport/registry": "0.14.0",
     "@zkpassport/sdk": "0.16.2",
     "@zkpassport/utils": "0.37.5",
     "openpgp": "5.11.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "qrcode-generator": "2.0.4"
   }
 }

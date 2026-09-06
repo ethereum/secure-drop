@@ -25,7 +25,8 @@ function filesContaining(files, needle) {
 test("nothing references the hosted verifier", () => {
   const src = filesUnder(path.join(__dirname, "..", "src"), [".js"])
   const sdk = filesUnder(path.join(__dirname, "..", "node_modules", "@zkpassport"), [".js", ".cjs"])
-  assert.deepEqual(filesContaining([...src, ...sdk], "verifier.zkpassport.id"), [])
+  const browserBundle = path.join(__dirname, "..", "..", "static", "js", "zkpassport-sdk.min.js")
+  assert.deepEqual(filesContaining([...src, ...sdk, browserBundle], "verifier.zkpassport.id"), [])
 })
 
 test("sidecar never attaches a policy or registers onResult", () => {
