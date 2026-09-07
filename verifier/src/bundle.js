@@ -49,8 +49,8 @@ function fieldsBlock({ fields, identifier, reference, verifiedAt, facematch }) {
     row("Issuing country:", fields.issuing_country),
     row("Document type:", fields.document_type),
     "",
-    "The attached passport-proof-bundle.json.pgp holds the proof and the data",
-    "needed to verify it again.",
+    "passport-proof-bundle.json.pgp, attached to the same email, holds the proof",
+    "and the data needed to verify it again.",
   ].join("\n")
 }
 

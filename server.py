@@ -76,7 +76,7 @@ def get_identifier(recipient, now=None, randint=None):
 # One line at the end of every legal email telling legal where the passport
 # verification stands for this submission.
 PASSPORT_STATUS = {
-    'verified': "Passport verification: verified with zkPassport. Fields are in the encrypted block above; the proof bundle is attached.",
+    'verified': "Passport verification: verified with zkPassport. The passport fields are in the attached passport-fields-verified.txt.pgp; the proof bundle is attached as passport-proof-bundle.json.pgp.",
     'not-attempted': "Passport verification: not attempted.",
     'failed': "Passport verification: attempted, but the proof failed to verify. The applicant submitted without it.",
     'unavailable': "Passport verification: attempted, but the verification service was unavailable. The applicant submitted without it.",
@@ -86,7 +86,8 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
     """
     Creates an email message with attachments for AWS SES.
     For legal, `passport` is a dict with 'status' and, when verified, the
-    PGP-armored 'fields_block' and 'bundle' from the verifier.
+    PGP-armored 'fields_block' and 'bundle' from the verifier, which become
+    attachments.
     """
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
@@ -97,8 +98,6 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
     if reference:
         subject = f'{reference} {subject}'
     if passport:
-        if passport.get('fields_block'):
-            plain_text += '\n\n' + passport['fields_block']
         plain_text += '\n\n' + PASSPORT_STATUS[passport['status']]
         if passport['status'] == 'verified':
             subject += ' [ZK-VERIFIED]'
@@ -127,6 +126,12 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
         )
         msg.attach(part)
 
+    # Verified passport data arrives as attachments, the same shape as the
+    # passport photo applicants used to upload.
+    if passport and passport.get('fields_block'):
+        part = MIMEApplication(passport['fields_block'].encode('utf-8'))
+        part.add_header('Content-Disposition', 'attachment', filename='passport-fields-verified.txt.pgp')
+        msg.attach(part)
     if passport and passport.get('bundle'):
         part = MIMEApplication(passport['bundle'].encode('utf-8'))
         part.add_header('Content-Disposition', 'attachment', filename='passport-proof-bundle.json.pgp')

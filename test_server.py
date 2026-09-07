@@ -159,13 +159,12 @@ response, send_email, kissflow = submit({**base, "passport": proof}, verifier=ve
 assert response.status_code == 200
 sent = send_email.call_args.args[0]
 assert sent["Subject"].endswith("[ZK-VERIFIED]")
-body, file_part, bundle_part = sent.get_payload()
-assert body.get_payload() == (
-    "-----BEGIN PGP MESSAGE-----\n...\n-----END PGP MESSAGE-----"
-    "\n\n-----BEGIN PGP MESSAGE-----\nfields\n-----END PGP MESSAGE-----"
-    "\n\n" + server.PASSPORT_STATUS["verified"]
-)
+body, file_part, fields_part, bundle_part = sent.get_payload()
+assert body.get_payload() == "-----BEGIN PGP MESSAGE-----\n...\n-----END PGP MESSAGE-----\n\n" + server.PASSPORT_STATUS["verified"]
+assert "-----BEGIN PGP MESSAGE-----\nfields" not in body.get_payload()  # the fields ciphertext is an attachment, not body text
 assert file_part.get_filename() == "passport.jpg.pgp"
+assert fields_part.get_filename() == "passport-fields-verified.txt.pgp"
+assert fields_part.get_payload(decode=True) == b"-----BEGIN PGP MESSAGE-----\nfields\n-----END PGP MESSAGE-----"
 assert bundle_part.get_filename() == "passport-proof-bundle.json.pgp"
 assert bundle_part.get_payload(decode=True) == b"-----BEGIN PGP MESSAGE-----\nbundle\n-----END PGP MESSAGE-----"
 assert kissflow.call_args.args[2] == "zk-verified"

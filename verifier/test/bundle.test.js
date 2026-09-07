@@ -56,8 +56,8 @@ test("fields block reads as specified", () => {
     "Issuing country:  IRL",
     "Document type:    passport",
     "",
-    "The attached passport-proof-bundle.json.pgp holds the proof and the data",
-    "needed to verify it again.",
+    "passport-proof-bundle.json.pgp, attached to the same email, holds the proof",
+    "and the data needed to verify it again.",
   ])
   assert.match(fieldsBlock({ fields: expectedFields, identifier: "x", reference: "", verifiedAt, facematch: "off" }), /Reference: +\(none\)/)
 })
