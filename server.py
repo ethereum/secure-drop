@@ -73,6 +73,10 @@ def get_identifier(recipient, now=None, randint=None):
         randint = Random().randint(1000, 9999)
     return f'{recipient}:{now.strftime("%Y:%m:%d:%H:%M:%S")}:{randint}'
 
+# Attachment names the verifier's output uses. Uploads with these names are
+# refused so that an attachment carrying one can only have come from the verifier.
+RESERVED_ATTACHMENT_NAMES = {'passport-fields-verified.txt', 'passport-proof-bundle.json'}
+
 # One line at the end of every legal email telling legal where the passport
 # verification stands for this submission.
 PASSPORT_STATUS = {
@@ -100,7 +104,7 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
     if passport:
         plain_text += '\n\n' + PASSPORT_STATUS[passport['status']]
         if passport['status'] == 'verified':
-            subject += ' [ZK-VERIFIED]'
+            subject += ' [ZK-VERIFIED-PASSPORT]'
     
     # Create message container
     msg = MIMEMultipart()
@@ -541,6 +545,9 @@ def submit():
             raise ValueError('Error: Invalid recipient!')
         if not isinstance(reference, str) or len(reference) > 200:
             return jsonify({'status': 'failure', 'message': 'The Reference ID is too long.'}), 400
+        for item in files:
+            if sanitize_filename(str(item.get('filename', ''))).lower() in RESERVED_ATTACHMENT_NAMES:
+                return jsonify({'status': 'failure', 'message': f"The file name {item.get('filename')} is reserved. Please rename the file and try again."}), 400
 
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         message_length = len(message)
