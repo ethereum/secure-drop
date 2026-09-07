@@ -17,6 +17,7 @@ services:
     build:
       context: .
       dockerfile: verifier/Dockerfile
+    restart: unless-stopped
     environment:
       ZKPASSPORT_DOMAIN: ${ZKPASSPORT_DOMAIN}
       ZKPASSPORT_SCOPE: ${ZKPASSPORT_SCOPE}

@@ -141,6 +141,10 @@ response, send_email, _ = submit({**base, "recipient": "nobody"})
 assert response.json["status"] == "failure"
 assert not send_email.called
 
+response, send_email, _ = submit({**base, "reference": "x" * 201})
+assert response.status_code == 400
+assert not send_email.called
+
 
 # --- passport verification -----------------------------------------------
 
@@ -184,9 +188,13 @@ for down in (
     assert response.json["code"] == "verification_unavailable"
     assert not send_email.called
 
-# A request the verifier itself refuses, or a proof field that is not an object, is a bad proof, not an outage.
-response, send_email, _ = submit({**base, "passport": proof}, verifier=FakeVerifierResponse(400, {"error": "bad_request"}))
-assert response.status_code == 400 and response.json["code"] == "proof_verification_failed"
+# Only a 200 carries a verdict: a 4xx or a non-object body from the verifier is our problem, not the applicant's.
+for odd in (FakeVerifierResponse(400, {"error": "bad_request"}), FakeVerifierResponse(200, []), FakeVerifierResponse(200, None)):
+    response, send_email, _ = submit({**base, "passport": proof}, verifier=odd)
+    assert response.status_code == 502 and response.json["code"] == "verification_unavailable", odd
+    assert not send_email.called
+
+# A proof field that is not an object is a bad proof.
 response, send_email, _ = submit({**base, "passport": "yes"})
 assert response.status_code == 400 and response.json["code"] == "proof_verification_failed"
 assert not send_email.called

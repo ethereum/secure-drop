@@ -172,16 +172,17 @@ def verify_passport(passport, identifier, reference):
             },
             timeout=60,
         )
-        if 400 <= response.status_code < 500:
-            # The verifier refused the request itself; retrying will not help.
-            logging.warning(f"Verifier rejected the request for {identifier}: {response.status_code}")
-            return 'rejected', None
+        # Only a 200 carries a verdict. Anything else means the verifier, or the
+        # request we built for it, has a problem the applicant cannot fix.
         if response.status_code != 200:
             logging.error(f"Verifier returned {response.status_code} for {identifier}")
             return 'unavailable', None
         reply = response.json()
     except (requests.RequestException, ValueError) as e:
         logging.error(f"Verifier unusable for {identifier}: {e.__class__.__name__}")
+        return 'unavailable', None
+    if not isinstance(reply, dict):
+        logging.error(f"Verifier reply for {identifier} is not an object")
         return 'unavailable', None
     if not reply.get('verified'):
         return 'rejected', None
@@ -464,6 +465,8 @@ VERIFIER_URL = os.environ['VERIFIER_URL'].rstrip('/')
 ZKPASSPORT_DOMAIN = os.environ['ZKPASSPORT_DOMAIN']
 ZKPASSPORT_SCOPE = os.environ['ZKPASSPORT_SCOPE']
 ZKPASSPORT_FACEMATCH = os.getenv('ZKPASSPORT_FACEMATCH', 'strict')
+if ZKPASSPORT_FACEMATCH not in ('strict', 'regular', 'off'):
+    raise EnvironmentError(f"ZKPASSPORT_FACEMATCH must be strict, regular, or off, got '{ZKPASSPORT_FACEMATCH}'")
 
 # Initialize AWS SES V2 client
 ses_client = boto3.client(
@@ -531,6 +534,8 @@ def submit():
 
         if not valid_recipient(recipient):
             raise ValueError('Error: Invalid recipient!')
+        if not isinstance(reference, str) or len(reference) > 200:
+            return jsonify({'status': 'failure', 'message': 'The Reference ID is too long.'}), 400
 
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         message_length = len(message)

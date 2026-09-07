@@ -2,17 +2,20 @@ const { test } = require("node:test")
 const assert = require("node:assert/strict")
 const { setUpRegistry } = require("../src/registry")
 
-function fakeClient({ cdnOk = true, rpcOk = true } = {}) {
-  const calls = { manifest: 0, addresses: 0 }
+function fakeClient({ rootAnswer = true, rootDelayMs = 0 } = {}) {
+  const calls = { manifest: 0, addresses: 0, roots: [] }
   return {
     calls,
+    async isCertificateRootValid(root, timestamp) {
+      calls.roots.push({ root, timestamp })
+      await new Promise((r) => setTimeout(r, rootDelayMs))
+      if (rootAnswer instanceof Error) throw rootAnswer
+      return rootAnswer
+    },
     async getCertificateRegistryAddress() { calls.addresses++; return "0xcert" },
     async getCircuitRegistryAddress() { calls.addresses++; return "0xcirc" },
     getRootRegistryAddress() { return "0xroot" },
     async getCircuitManifest(root, { version }) { calls.manifest++; if (version === "9.9.9") throw new Error("404"); return { version, root: "0xr", circuits: {} } },
-    async getLatestCertificateRoot() { if (!rpcOk) throw new Error("rpc down"); return "0xcr" },
-    async getLatestCircuitRoot() { if (!rpcOk) throw new Error("rpc down"); return "0xr" },
-    getUrlForCircuitManifestByRoot: (root) => (cdnOk ? "data:application/json,{}" : "http://127.0.0.1:9/nothing"),
   }
 }
 
@@ -36,8 +39,10 @@ test("addresses resolve once and manifests are cached per version", async () => 
   assert.equal(client.calls.manifest, 4, "a failed fetch is not cached")
 })
 
-test("reachability needs both the RPC and the CDN", async () => {
-  assert.equal(await (await setUpRegistry(fakeClient())).servicesReachable(), true)
-  assert.equal(await (await setUpRegistry(fakeClient({ rpcOk: false }))).servicesReachable(), false)
-  assert.equal(await (await setUpRegistry(fakeClient({ cdnOk: false }))).servicesReachable(), false)
+test("the root check passes through answers and errors", async () => {
+  const client = fakeClient({ rootAnswer: false })
+  const registry = await setUpRegistry(client)
+  assert.equal(await registry.checkCertificateRoot("0xabc", 1700000000), false)
+  assert.deepEqual(client.calls.roots, [{ root: "0xabc", timestamp: 1700000000 }])
+  await assert.rejects((await setUpRegistry(fakeClient({ rootAnswer: new Error("rpc down") }))).checkCertificateRoot("0x1", 1), /rpc down/)
 })

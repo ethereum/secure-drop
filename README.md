@@ -50,7 +50,7 @@ Legal submissions offer an optional button, "Verify passport with zkPassport". T
 
 What Legal receives, all under the one submission identifier: the applicant's message and files as today, a PGP-encrypted block with the passport fields (full name, first and last name, date of birth, nationality, gender, passport number, expiry date, issuing country, document type), an encrypted `passport-proof-bundle.json.pgp` with everything needed to verify the proof again later, `[ZK-VERIFIED]` in the subject, `zk-verified` in the Kissflow entry, and a plain status line at the end of the body. Submissions without a proof carry a status line saying whether verification was not attempted or was attempted and failed.
 
-The verifier only ever sees the passport fields in memory while handling one request. It never logs or stores them, and everything it returns to the web app is already encrypted to the Legal key from [static/js/public-keys.js](static/js/public-keys.js).
+The web app passes the proof to the verifier without reading it. The verifier holds the passport fields in memory only while handling that one request, never logs or stores them, and returns them to the web app already encrypted to the Legal key from [static/js/public-keys.js](static/js/public-keys.js).
 
 Settings, in `.env`:
 
@@ -74,7 +74,7 @@ If the server running the service were to be compromised, this could lead to sev
 
 A server operator should follow best practises for security when setting up and operating the server running the service.
 
-With passport verification enabled, the verifier sees the disclosed passport fields in memory for the duration of one request. It never writes or logs them, and passes them on only as PGP ciphertext to the Legal key. The web app never sees them at all. Verification runs locally in the verifier; zkPassport's hosted verifier is never contacted.
+With passport verification enabled, the web app relays the proof and the phone's description of the disclosed fields to the verifier without reading or logging them. The verifier holds the passport fields in memory for the duration of one request, never writes or logs them, and passes them on only as PGP ciphertext to the Legal key. Verification runs locally in the verifier; zkPassport's hosted verifier is never contacted.
 
 
 ## Run

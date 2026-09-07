@@ -86,6 +86,8 @@ Dropzone.options.dropzoneArea = {
 // The proof is held in memory until submit; the server verifies it.
 var passportProof = null;   // { proofs, queryResult } once the phone has produced a proof
 var passportStatus = null;  // "failed" | "unavailable" after an attempt that did not produce one
+var passportAttempt = 0;    // increments per click; callbacks from older attempts are ignored
+var zkPassportInstance = null;
 const PASSPORT_FIELDS = ["fullname", "firstname", "lastname", "birthdate", "nationality",
 	"gender", "document_number", "expiry_date", "issuing_country", "document_type"];
 
@@ -99,7 +101,12 @@ async function startPassportVerification() {
 	const panel = document.getElementById("passport-panel");
 	const qrContainer = document.getElementById("zkpassport-qr");
 	const link = document.getElementById("zkpassport-link");
+	const attempt = ++passportAttempt;
+	if (zkPassportInstance) {
+		zkPassportInstance.clearAllRequests(); // drop the previous attempt's connection and callbacks
+	}
 	passportProof = null;
+	passportStatus = null;
 	button.disabled = true;
 	panel.style.display = "block";
 	qrContainer.innerHTML = "";
@@ -108,6 +115,7 @@ async function startPassportVerification() {
 
 	try {
 		const zk = new ZKPassport(section.dataset.domain);
+		zkPassportInstance = zk;
 		let query = await zk.request({
 			name: "Ethereum Foundation Secure Drop",
 			logo: location.origin + "/static/img/eth-diamond2x.png",
@@ -123,6 +131,7 @@ async function startPassportVerification() {
 			query = query.facematch(section.dataset.facematch);
 		}
 		const request = query.done();
+		if (attempt !== passportAttempt) return; // superseded while the request was being prepared
 
 		const qr = qrcode(0, "M");
 		qr.addData(request.url);
@@ -132,9 +141,10 @@ async function startPassportVerification() {
 		link.style.display = "inline";
 		setPassportStatus("Scan the code with the zkPassport app, or open the link on your phone.");
 
-		request.onRequestReceived(() => setPassportStatus("Request received. Follow the steps on your phone."));
-		request.onGeneratingProof(() => setPassportStatus("Generating the proof on your phone. This can take a minute."));
-		request.onSuccess(({ proofs, result }) => {
+		const current = (fn) => (...args) => { if (attempt === passportAttempt) fn(...args); };
+		request.onRequestReceived(current(() => setPassportStatus("Request received. Follow the steps on your phone.")));
+		request.onGeneratingProof(current(() => setPassportStatus("Generating the proof on your phone. This can take a minute.")));
+		request.onSuccess(current(({ proofs, result }) => {
 			passportProof = { proofs: proofs, queryResult: result };
 			passportStatus = null;
 			qrContainer.innerHTML = "";
@@ -142,13 +152,38 @@ async function startPassportVerification() {
 			setPassportStatus("Passport proof ready. It will be verified when you submit.");
 			button.textContent = "Start over";
 			button.disabled = false;
-		});
-		request.onReject(() => passportAttemptFailed("The request was declined in the app. You can try again, or upload a photo of your passport instead."));
-		request.onError(() => passportAttemptFailed("The app did not complete the proof. You can try again, or upload a photo of your passport instead."));
+		}));
+		request.onReject(current(() => passportAttemptFailed("The request was declined in the app. You can try again, or upload a photo of your passport instead.")));
+		request.onError(current(() => passportAttemptFailed("The app did not complete the proof. You can try again, or upload a photo of your passport instead.")));
 	} catch (error) {
 		console.error(error);
-		passportAttemptFailed("Passport verification could not start. You can try again, or upload a photo of your passport instead.");
+		if (attempt === passportAttempt) {
+			passportAttemptFailed("Passport verification could not start. You can try again, or upload a photo of your passport instead.");
+		}
 	}
+}
+
+// The verifier could not be reached. The proof is kept so a plain resubmit
+// retries it; only a real rejection discards it.
+function passportServiceUnavailable(message) {
+	setPassportStatus(message);
+	document.getElementById("passport-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// Forget everything about the passport step, e.g. when the recipient changes.
+function resetPassportState() {
+	passportAttempt++;
+	if (zkPassportInstance) {
+		zkPassportInstance.clearAllRequests();
+	}
+	passportProof = null;
+	passportStatus = null;
+	document.getElementById("passport-panel").style.display = "none";
+	document.getElementById("zkpassport-qr").innerHTML = "";
+	setPassportStatus("");
+	const button = document.getElementById("verify-passport");
+	button.textContent = "Verify passport with zkPassport";
+	button.disabled = false;
 }
 
 function passportAttemptFailed(message, status) {
@@ -157,6 +192,7 @@ function passportAttemptFailed(message, status) {
 	document.getElementById("zkpassport-qr").innerHTML = "";
 	document.getElementById("zkpassport-link").style.display = "none";
 	setPassportStatus(message);
+	document.getElementById("passport-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
 	const button = document.getElementById("verify-passport");
 	button.textContent = "Try again";
 	button.disabled = false;
@@ -190,9 +226,16 @@ function acceptEncryptedData(data) {
 		postData('/submit-encrypted-data', dataArray)
 		.then(response => {
 			console.log(response.status, response.code || '');
-			if (response.code === "proof_verification_failed" || response.code === "verification_unavailable") {
+			if (response.code === "proof_verification_failed") {
 				// Keep the form; only the passport panel changes.
-				passportAttemptFailed(response.message, response.code === "verification_unavailable" ? "unavailable" : "failed");
+				passportAttemptFailed(response.message, "failed");
+				turnstile.reset();
+				return;
+			}
+			if (response.code === "verification_unavailable") {
+				// Keep the form and the proof; a resubmit retries the verifier.
+				if (!passportProof) passportStatus = "unavailable";
+				passportServiceUnavailable(response.message);
 				turnstile.reset();
 				return;
 			}
@@ -238,8 +281,11 @@ document.addEventListener('DOMContentLoaded', function() {
 			referenceInput.setAttribute("required", "required");
 		}
 
-		// Passport verification is offered to Legal only
+		// Passport verification is offered to Legal only; leaving Legal forgets any proof
 		document.getElementById("passport-section").style.display = recipient.value === "legal" ? "block" : "none";
+		if (recipient.value !== "legal") {
+			resetPassportState();
+		}
 	});
 
 	document.getElementById("verify-passport").addEventListener("click", startPassportVerification);

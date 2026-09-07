@@ -2,7 +2,7 @@ const { test } = require("node:test")
 const assert = require("node:assert/strict")
 const { createVerifier, fieldsFromProof, BusyError, ServiceUnavailableError, DISCLOSED_BYTES_LENGTH, MAX_QUEUE } = require("../src/verify")
 const { DISCLOSED_FIELDS } = require("../src/query")
-const { settings, expectedMask, mrzBytes, disclosedBytesFor, sampleProofs, clientResult, expectedFields } = require("./fixtures")
+const { settings, expectedMask, certificateRoot, proofDate, mrzBytes, disclosedBytesFor, sampleProofs, clientResult, expectedFields } = require("./fixtures")
 
 function fakeSdk(verified) {
   const calls = []
@@ -105,23 +105,32 @@ test("dates and gender are read from the passport bytes with plausibility checks
   assert.equal(fieldsFromProof(mrzBytes({ sex: "X" }), today), null)
 })
 
-test("an SDK failure is the proof's fault when upstream services are reachable, ours when they are not", async () => {
+test("an SDK exception is an outage; a clean rejection is confirmed with our own root check", async () => {
   const throwing = (error) => ({ verify: async () => { throw error } })
   const input = () => ({ proofs: sampleProofs(), queryResult: clientResult })
 
-  let verifier = createVerifier({ ...settings, zkPassport: throwing(new Error("Circuit not found in manifest")), servicesReachable: async () => true })
+  let verifier = createVerifier({ ...settings, zkPassport: throwing(new TypeError("fetch failed")) })
+  await assert.rejects(verifier.verifyProof(input()), ServiceUnavailableError)
+
+  const checks = []
+  const rootCheck = (answer) => async (root, timestamp) => { checks.push({ root, timestamp }); if (answer instanceof Error) throw answer; return answer }
+
+  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), checkCertificateRoot: rootCheck(true) })
+  assert.deepEqual(await verifier.verifyProof(input()), { verified: false })
+  assert.equal(checks.length, 1)
+  assert.equal(checks[0].root, "0x" + certificateRoot.toString(16).padStart(64, "0"))
+  assert.equal(checks[0].timestamp, Math.floor(proofDate.getTime() / 1000))
+
+  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), checkCertificateRoot: rootCheck(false) })
   assert.deepEqual(await verifier.verifyProof(input()), { verified: false })
 
-  verifier = createVerifier({ ...settings, zkPassport: throwing(new TypeError("fetch failed")), servicesReachable: async () => false })
+  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), checkCertificateRoot: rootCheck(new Error("rpc down")) })
   await assert.rejects(verifier.verifyProof(input()), ServiceUnavailableError)
 
-  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), servicesReachable: async () => false })
-  await assert.rejects(verifier.verifyProof(input()), ServiceUnavailableError)
-
-  let probes = 0
-  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(true), servicesReachable: async () => { probes++; return true } })
+  checks.length = 0
+  verifier = createVerifier({ ...settings, zkPassport: fakeSdk(true), checkCertificateRoot: rootCheck(true) })
   assert.equal((await verifier.verifyProof(input())).verified, true)
-  assert.equal(probes, 0, "reachability is only checked after a failure")
+  assert.equal(checks.length, 0, "the root check only runs after a rejection")
 })
 
 test("verifications run one at a time and the line is bounded", async () => {

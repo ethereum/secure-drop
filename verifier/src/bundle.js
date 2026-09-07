@@ -1,12 +1,6 @@
 const fs = require("node:fs")
 const path = require("node:path")
-const {
-  getProofData,
-  getNumberOfPublicInputs,
-  getMerkleRootFromDSCProof,
-  getCurrentDateFromDisclosureProof,
-} = require("@zkpassport/utils")
-const { classifyProofs } = require("./verify")
+const { classifyProofs, registryContext } = require("./verify")
 
 const BUNDLE_FORMAT = "secure-drop-zkpassport-bundle/1"
 const PACKAGES = ["@zkpassport/sdk", "@zkpassport/registry", "@zkpassport/utils", "@aztec/bb.js", "@aztec/bb.js-v4"]
@@ -60,21 +54,13 @@ function fieldsBlock({ fields, identifier, reference, verifiedAt, facematch }) {
   ].join("\n")
 }
 
-function publicInputsOf(proof) {
-  return getProofData(proof.proof, getNumberOfPublicInputs(proof.name))
-}
-
-function hex(value) {
-  return "0x" + value.toString(16).padStart(64, "0")
-}
-
 // What is needed to verify this proof again later: the proof, our query, the
 // roots it was checked against, the identity of every circuit involved, and the
 // software versions that did the checking.
 async function buildBundle({ proofs, queryResult, expectedQuery, identifier, reference, verifiedAt, config, registryClient }) {
   const roles = classifyProofs(proofs, config.facematch !== "off")
   if (!roles) throw new Error("Cannot bundle a proof set that did not pass verification checks")
-  const { certificate: certificateProof, disclosure: disclosureProof } = roles
+  const { root: certificateRoot, proofDate } = registryContext(roles)
   const circuitVersion = proofs[0].version
 
   // The manifest names every circuit of this version with its hash. The
@@ -85,8 +71,6 @@ async function buildBundle({ proofs, queryResult, expectedQuery, identifier, ref
   for (const proof of proofs) {
     circuits[proof.name] = { circuitHash: manifest.circuits[proof.name]?.hash ?? null, vkeyHash: proof.vkeyHash ?? null }
   }
-
-  const proofDate = getCurrentDateFromDisclosureProof(publicInputsOf(disclosureProof))
 
   return {
     format: BUNDLE_FORMAT,
@@ -113,7 +97,7 @@ async function buildBundle({ proofs, queryResult, expectedQuery, identifier, ref
       circuitManifest: manifest,
       circuits,
       certificateRegistry: {
-        root: hex(getMerkleRootFromDSCProof(publicInputsOf(certificateProof))),
+        root: certificateRoot,
         validAt: proofDate.toISOString(),
         chainId: CHAIN_ID,
         contract: await registryClient.getCertificateRegistryAddress(),

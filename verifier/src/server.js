@@ -111,7 +111,7 @@ async function main() {
   fs.mkdirSync("/tmp/zkp", { recursive: true })
   const legalKey = await loadEncryptionKey(config.publicKeysJsPath, "legal")
   const registryClient = await setUpRegistry()
-  const verifier = createVerifier({ ...config, servicesReachable: registryClient.servicesReachable })
+  const verifier = createVerifier({ ...config, checkCertificateRoot: registryClient.checkCertificateRoot })
   const server = http.createServer(createApp({ config, legalKey, verifier, registryClient }))
   server.listen(config.port, () => console.log(`verifier listening on ${config.port}, face match ${config.facematch}`))
 }

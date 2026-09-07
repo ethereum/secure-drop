@@ -1,5 +1,12 @@
 const { ZKPassport } = require("@zkpassport/sdk")
-const { DisclosedData, getDiscloseMask, getProofData, getNumberOfPublicInputs } = require("@zkpassport/utils")
+const {
+  DisclosedData,
+  getDiscloseMask,
+  getProofData,
+  getNumberOfPublicInputs,
+  getMerkleRootFromDSCProof,
+  getCurrentDateFromDisclosureProof,
+} = require("@zkpassport/utils")
 const { buildExpectedQuery, DISCLOSED_FIELDS } = require("./query")
 
 const DISCLOSED_BYTES_LENGTH = 90 // the SDK pads a passport's 88-character zone to 90
@@ -28,8 +35,9 @@ class BusyError extends Error {
   }
 }
 
-// Raised when the SDK could not verify and the services it depends on (the
-// registry RPC, the circuits CDN) are unreachable, so the failure is ours.
+// Raised when verification could not be completed because a service it depends
+// on (the registry RPC, the circuits CDN) failed, so the failure is ours, not
+// the proof's.
 class ServiceUnavailableError extends Error {
   constructor(cause) {
     super("Verification service unavailable")
@@ -143,15 +151,29 @@ function fieldsFromProof(disclosedBytes, today = new Date()) {
   return fields
 }
 
+function publicInputsOf(proof) {
+  return getProofData(proof.proof, getNumberOfPublicInputs(proof.name))
+}
+
+// The certificate registry root the proof was built against, and the proof's
+// own date, both read from public inputs. Exported for the bundle.
+function registryContext(roles) {
+  const root = "0x" + getMerkleRootFromDSCProof(publicInputsOf(roles.certificate)).toString(16).padStart(64, "0")
+  const proofDate = getCurrentDateFromDisclosureProof(publicInputsOf(roles.disclosure))
+  return { root, proofDate }
+}
+
 // Every eq in the expected query must hold for the derived fields.
 function satisfiesConstraints(fields, expectedQuery) {
   return Object.entries(expectedQuery).every(([name, rule]) => rule?.eq === undefined || fields[name] === rule.eq)
 }
 
-// `servicesReachable` answers whether the registry RPC and circuits CDN can be
-// reached right now. It decides whether an SDK failure is the proof's fault or
-// ours, and is only consulted after a failure.
-function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(domain), servicesReachable = async () => true }) {
+// `checkCertificateRoot(root, timestampSeconds)` asks the on-chain registry
+// whether a root was valid at that time. The SDK swallows RPC failures on this
+// same check into "not verified", so after a clean SDK rejection the sidecar
+// repeats it: a throw means the RPC is down (our problem), an answer means the
+// rejection stands.
+function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(domain), checkCertificateRoot = async () => true }) {
   const expectedQuery = buildExpectedQuery({ domain, facematch })
   const expectedMask = expectedMaskFor(expectedQuery)
   let queue = Promise.resolve()
@@ -167,16 +189,12 @@ function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(
     return run
   }
 
-  async function notVerified(cause) {
-    if (!(await servicesReachable())) throw new ServiceUnavailableError(cause)
-    return { verified: false }
-  }
-
   // Resolves { verified: false } for anything malformed or unproven. Throws
-  // BusyError when the line is full and ServiceUnavailableError when the SDK
-  // failed while its upstream services were unreachable.
+  // BusyError when the line is full and ServiceUnavailableError when a service
+  // the verification depends on failed.
   async function verifyProof({ proofs, queryResult }) {
     if (!looksLikeProofSubmission({ proofs, queryResult }, facematch, expectedMask)) return { verified: false }
+    const roles = classifyProofs(proofs, facematch !== "off")
 
     let result
     try {
@@ -188,11 +206,20 @@ function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(
       )
     } catch (error) {
       if (error instanceof BusyError) throw error
-      return notVerified(error)
+      // The shape checks above stop client data from breaking the SDK, so an
+      // exception here means a fetch or RPC failed inside it.
+      throw new ServiceUnavailableError(error)
     }
-    if (!result.verified) return notVerified()
+    if (!result.verified) {
+      const { root, proofDate } = registryContext(roles)
+      try {
+        await checkCertificateRoot(root, Math.floor(proofDate.getTime() / 1000))
+      } catch (error) {
+        throw new ServiceUnavailableError(error)
+      }
+      return { verified: false }
+    }
 
-    const roles = classifyProofs(proofs, facematch !== "off")
     const fields = fieldsFromProof(disclosedBytesOf(roles.disclosure, expectedMask))
     if (!fields || !satisfiesConstraints(fields, expectedQuery)) return { verified: false }
     return { verified: true, fields }
@@ -207,6 +234,7 @@ module.exports = {
   looksLikeProofSubmission,
   fieldsFromProof,
   expectedMaskFor,
+  registryContext,
   BusyError,
   ServiceUnavailableError,
   DISCLOSED_BYTES_LENGTH,
