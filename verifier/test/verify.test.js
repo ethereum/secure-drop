@@ -66,6 +66,7 @@ test("passes the server's query and scope, never the client's", async () => {
   assert.equal(sdk.calls.length, 1)
   assert.deepEqual(sdk.calls[0].originalQuery, expectedQuery)
   assert.equal(sdk.calls[0].scope, "ef-onboarding")
+  assert.equal(sdk.calls[0].verifierMode, "local")
   assert.equal(sdk.calls[0].validity, undefined)
 })
 

@@ -78,7 +78,9 @@ test("bundle records what the proof says and what verified it", async () => {
   assert.equal(bundle.queryResult, queryResult)
   assert.equal(bundle.proofs, proofs)
 
-  assert.equal(bundle.software["@zkpassport/sdk"], "0.16.2")
+  const installed = (name) => JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "node_modules", name, "package.json"), "utf8")).version
+  assert.equal(bundle.software["@zkpassport/sdk"], installed("@zkpassport/sdk"))
+  assert.match(bundle.software["@zkpassport/sdk"], /^0\.17\./)
   assert.equal(bundle.software["@aztec/bb.js"], "5.0.0")
   assert.match(bundle.software["@aztec/bb.js-v4"], /^4\./)
   assert.equal(bundle.software.verifiedWith, "@aztec/bb.js")

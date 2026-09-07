@@ -180,9 +180,11 @@ function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(
 
     let result
     try {
-      // originalQuery is ours, never the client's.
+      // originalQuery is ours, never the client's. verifierMode "local" keeps
+      // verification in this process; the default falls back to zkPassport's
+      // hosted verifier and would send the disclosed fields there.
       result = await serialized(() =>
-        zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope, writingDirectory: "/tmp/zkp" }),
+        zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope, verifierMode: "local", writingDirectory: "/tmp/zkp" }),
       )
     } catch (error) {
       if (error instanceof BusyError) throw error

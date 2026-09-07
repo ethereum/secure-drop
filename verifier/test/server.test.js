@@ -39,7 +39,8 @@ before(async () => {
 after(() => server.close())
 
 async function post(path, body, raw = false) {
-  const res = await fetch(baseUrl + path, { method: "POST", headers: { "content-type": "application/json" }, body: raw ? body : JSON.stringify(body) })
+  // A fresh connection per request: the 413 test closes its socket, and a pooled connection could otherwise be reused after that.
+  const res = await fetch(baseUrl + path, { method: "POST", headers: { "content-type": "application/json", connection: "close" }, body: raw ? body : JSON.stringify(body) })
   return { status: res.status, body: await res.json() }
 }
 

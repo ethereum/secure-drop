@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@zkpassport/registry": "0.14.0",
-    "@zkpassport/sdk": "0.16.2",
-    "@zkpassport/utils": "0.37.5",
+    "@zkpassport/sdk": "0.17.0-beta.2",
+    "@zkpassport/utils": "0.38.0-beta.2",
     "openpgp": "5.11.3"
   },
   "devDependencies": {

@@ -3,10 +3,11 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const path = require("node:path")
 
-// Guards against a future SDK bump or code change quietly reintroducing
-// behaviour this service must never have: contacting zkPassport's hosted
-// verifier, attaching a dashboard policy, or registering the SDK callback
-// that verifies proofs on its own.
+// Guards against a code change quietly reintroducing behaviour this service
+// must never have: contacting zkPassport's hosted verifier, attaching a
+// dashboard policy, or registering the SDK callback that verifies proofs on
+// its own. The SDK itself contains the hosted-verifier code; the sidecar keeps
+// it unreachable by passing verifierMode "local", which verify.test.js checks.
 
 function filesUnder(dir, extensions) {
   const out = []
@@ -22,15 +23,17 @@ function filesContaining(files, needle) {
   return files.filter((file) => fs.readFileSync(file, "utf8").includes(needle))
 }
 
-test("nothing references the hosted verifier", () => {
-  const src = filesUnder(path.join(__dirname, "..", "src"), [".js"])
-  const sdk = filesUnder(path.join(__dirname, "..", "node_modules", "@zkpassport"), [".js", ".cjs"])
-  const browserBundle = path.join(__dirname, "..", "..", "static", "js", "zkpassport-sdk.min.js")
-  assert.deepEqual(filesContaining([...src, ...sdk, browserBundle], "verifier.zkpassport.id"), [])
+const src = () => filesUnder(path.join(__dirname, "..", "src"), [".js"])
+const appJs = path.join(__dirname, "..", "..", "static", "js", "app.js")
+
+test("sidecar source never reaches for the hosted verifier", () => {
+  assert.deepEqual(filesContaining(src(), "verifier.zkpassport.id"), [])
+  assert.deepEqual(filesContaining(src(), "verifyWithVerifierApi"), [])
+  assert.deepEqual(filesContaining(src(), 'verifierMode: "auto"'), [])
+  assert.deepEqual(filesContaining(src(), 'verifierMode: "api"'), [])
 })
 
-test("sidecar never attaches a policy or registers onResult", () => {
-  const src = filesUnder(path.join(__dirname, "..", "src"), [".js"])
-  assert.deepEqual(filesContaining(src, ".policy("), [])
-  assert.deepEqual(filesContaining(src, "onResult"), [])
+test("neither the sidecar nor the browser code attaches a policy or registers onResult", () => {
+  assert.deepEqual(filesContaining([...src(), appJs], ".policy("), [])
+  assert.deepEqual(filesContaining([...src(), appJs], "onResult"), [])
 })
