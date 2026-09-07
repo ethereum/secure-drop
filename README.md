@@ -21,6 +21,7 @@ Docker Compose.
 * AWS SES (for email delivery)
 * Cloudflare Turnstile (for bot protection)
 * Kissflow API (optional - for KYC submission tracking)
+* zkPassport (optional passport verification for Legal submissions, see below). The pieces involved: the zkPassport mobile app on the applicant's phone, zkPassport's end-to-end encrypted bridge relay that carries the proof from the phone to the browser, a per-domain config lookup the browser SDK makes against zkPassport's dashboard API, zkPassport's circuits CDN and an Ethereum RPC (currently the SDK's built-in Alchemy key) that the verifier reads during verification.
 
 
 ## New setup
@@ -43,11 +44,39 @@ To enable Kissflow integration:
 2. Ensure your Kissflow API has permissions to read and update AOG items
 3. Test the integration using `python test_kissflow_integration.py`
 
+## Passport verification (zkPassport)
+
+Legal submissions offer an optional button, "Verify passport with zkPassport". The applicant scans a QR code (or opens a link on their phone), the zkPassport app reads the passport chip, checks the applicant's face against the passport photo, and produces a zero-knowledge proof on the phone. The proof travels with the rest of the submission and is checked by a small Node service in [verifier/](verifier/) before the email is sent. Applicants who do not use the button submit exactly as before.
+
+What Legal receives, all under the one submission identifier: the applicant's message and files as today, plus two more encrypted attachments in the same `.pgp` shape as the files, `passport-fields-verified.txt.pgp` with the passport fields (full name, first and last name, date of birth, nationality, gender, passport number, expiry date, issuing country, document type) and `passport-proof-bundle.json.pgp` with everything needed to verify the proof again later. The subject carries `[ZK-VERIFIED-PASSPORT]`, the Kissflow entry `zk-verified`, and the body ends with a plain status line. If the applicant submits a proof that does not verify, the submission still goes through with the message and files, the subject carries `[ZK-PASSPORT-PROOF-FAILED]`, the Kissflow entry `zk-proof-failed`, the status line says the proof failed, and the applicant is told legal may ask for a photo of the passport instead.
+
+For Legal: the subject marker is the source of truth. It is written by the server only after the verifier accepted the proof, and nothing the applicant sends can add it. The two passport attachments can only come from the verifier, because uploads using those file names are refused. Everything else in the email, the message and the other attachments, is what the applicant chose to send. Submissions without a proof carry a status line saying whether verification was not attempted or was attempted and failed.
+
+The web app passes the proof to the verifier without reading it. The verifier holds the passport fields in memory only while handling that one request, never logs or stores them, and returns them to the web app already encrypted to the Legal key from [static/js/public-keys.js](static/js/public-keys.js).
+
+Settings, in `.env`:
+
+```
+ZKPASSPORT_DOMAIN='secure-drop.ethereum.org'   # the hostname proofs are bound to; must match on web and verifier
+ZKPASSPORT_SCOPE='ef-onboarding'               # a fixed label baked into every proof; must match on web and verifier
+ZKPASSPORT_FACEMATCH='strict'                  # strict (default), regular, or off
+```
+
+`docker compose up` starts the verifier next to the web app and points the web app at it with `VERIFIER_URL`.
+
+Tests: `cd verifier && npm test` for the verifier, `python test_server.py` for the web app.
+
+The browser copy of the zkPassport SDK in `static/js/zkpassport-sdk.min.js` and the QR library in `static/js/qrcode.min.js` are built by `cd verifier && npm run build:browser`. The browser and the verifier must run the same SDK version, so rebuild the browser copy whenever the version in `verifier/package.json` changes.
+
+Deploying: the compose file covers local use. A production deployment needs the verifier image (published by CI as `<repo>-verifier`) running next to the web image, `VERIFIER_URL` set on the web container, and the three zkPassport settings set identically on both. The web app refuses to start without them. TODO: work out how to ship the verifier as part of this repo's deployment rather than as a separate manifest; adding it to the compose file is the cleanest if production can run from it.
+
 ## Security
 
 If the server running the service were to be compromised, this could lead to severe issues such as public keys and email addresses being changed/added so that an attacker can also read the encrypted messages.
 
 A server operator should follow best practises for security when setting up and operating the server running the service.
+
+With passport verification enabled, the web app relays the proof and the phone's description of the disclosed fields to the verifier without reading or logging them. The verifier holds the passport fields in memory for the duration of one request, never writes or logs them, and passes them on only as PGP ciphertext to the Legal key. Verification runs locally in the verifier; zkPassport's hosted verifier is never contacted.
 
 
 ## Run

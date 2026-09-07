@@ -10,3 +10,20 @@ services:
       FLASK_APP: server.py
       FLASK_DEBUG: ${DEBUG}
       DEBUG: ${DEBUG}
+      VERIFIER_URL: http://verifier:3000
+    depends_on:
+      - verifier
+  verifier:
+    build:
+      context: .
+      dockerfile: verifier/Dockerfile
+    restart: unless-stopped
+    environment:
+      ZKPASSPORT_DOMAIN: ${ZKPASSPORT_DOMAIN}
+      ZKPASSPORT_SCOPE: ${ZKPASSPORT_SCOPE}
+      ZKPASSPORT_FACEMATCH: ${ZKPASSPORT_FACEMATCH:-strict}
+    volumes:
+      - verifier-cache:/tmp/zkp
+
+volumes:
+  verifier-cache:

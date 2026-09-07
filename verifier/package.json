@@ -1,0 +1,24 @@
+{
+  "name": "secure-drop-verifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verifies zkPassport proofs for secure-drop and encrypts the result to the legal PGP key",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "build:browser": "node scripts/build-browser-sdk.js"
+  },
+  "dependencies": {
+    "@zkpassport/registry": "0.14.0",
+    "@zkpassport/sdk": "0.17.0-beta.2",
+    "@zkpassport/utils": "0.38.0-beta.2",
+    "openpgp": "5.11.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "qrcode-generator": "2.0.4"
+  }
+}

@@ -21,7 +21,37 @@ env:
 
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: verifier/package-lock.json
+
+      - name: Verifier tests
+        working-directory: verifier
+        run: |
+          npm ci
+          npm test
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Server tests
+        run: |
+          pip install -r requirements.txt
+          python test_server.py
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -68,6 +98,25 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The zkPassport verifier sidecar, published as <repo>-verifier
+      - name: Extract Docker metadata (verifier)
+        id: meta-verifier
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-verifier
+
+      - name: Build and push verifier image
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: .
+          file: verifier/Dockerfile
+          build-args: GIT_SHA=${{ github.sha }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-verifier.outputs.tags }}
+          labels: ${{ steps.meta-verifier.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
