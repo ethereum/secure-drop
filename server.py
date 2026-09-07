@@ -450,7 +450,7 @@ def send_identifier_to_kissflow(grant_id, legal_identifier, marker=None):
     return success
 
 # Validate required environment variables
-required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL', 'VERIFIER_URL']
+required_env_vars = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'SES_FROM_EMAIL', 'VERIFIER_URL', 'ZKPASSPORT_DOMAIN', 'ZKPASSPORT_SCOPE']
 validate_env_vars(required_env_vars)
 
 TURNSTILE_SITE_KEY = os.environ['TURNSTILE_SITE_KEY']
@@ -460,6 +460,10 @@ AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
 AWS_REGION = os.environ['AWS_REGION']
 FROMEMAIL = os.environ['SES_FROM_EMAIL']
 VERIFIER_URL = os.environ['VERIFIER_URL'].rstrip('/')
+# Must match the verifier sidecar's settings; the browser builds its request from them.
+ZKPASSPORT_DOMAIN = os.environ['ZKPASSPORT_DOMAIN']
+ZKPASSPORT_SCOPE = os.environ['ZKPASSPORT_SCOPE']
+ZKPASSPORT_FACEMATCH = os.getenv('ZKPASSPORT_FACEMATCH', 'strict')
 
 # Initialize AWS SES V2 client
 ses_client = boto3.client(
@@ -498,7 +502,9 @@ def health():
 
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html', notice='', hascaptcha=True, attachments_number=Config.NUMBER_OF_ATTACHMENTS, turnstile_sitekey=TURNSTILE_SITE_KEY)
+    return render_template('index.html', notice='', hascaptcha=True, attachments_number=Config.NUMBER_OF_ATTACHMENTS,
+                           turnstile_sitekey=TURNSTILE_SITE_KEY, zkpassport_domain=ZKPASSPORT_DOMAIN,
+                           zkpassport_scope=ZKPASSPORT_SCOPE, zkpassport_facematch=ZKPASSPORT_FACEMATCH)
 
 @app.route('/submit-encrypted-data', methods=['POST'])
 @limiter.limit("3 per minute")
