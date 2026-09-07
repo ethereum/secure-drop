@@ -82,7 +82,8 @@ RESERVED_ATTACHMENT_NAMES = {'passport-fields-verified.txt', 'passport-proof-bun
 PASSPORT_STATUS = {
     'verified': "Passport verification: verified with zkPassport. The passport fields are in the attached passport-fields-verified.txt.pgp; the proof bundle is attached as passport-proof-bundle.json.pgp.",
     'not-attempted': "Passport verification: not attempted.",
-    'failed': "Passport verification: attempted, but the proof failed to verify. The applicant submitted without it.",
+    'failed': "Passport verification: attempted, but the applicant's phone did not produce a proof. The applicant submitted without it.",
+    'rejected': "Passport verification: FAILED. The zkPassport proof the applicant submitted did not verify. No verified passport fields are attached.",
     'unavailable': "Passport verification: attempted, but the verification service was unavailable. The applicant submitted without it.",
 }
 
@@ -105,6 +106,8 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
         plain_text += '\n\n' + PASSPORT_STATUS[passport['status']]
         if passport['status'] == 'verified':
             subject += ' [ZK-VERIFIED-PASSPORT]'
+        elif passport['status'] == 'rejected':
+            subject += ' [ZK-PASSPORT-PROOF-FAILED]'
     
     # Create message container
     msg = MIMEMultipart()
@@ -571,12 +574,10 @@ def submit():
                         'message': 'Passport verification is not available right now. You can try again in a few minutes, or upload a photo of your passport instead.',
                     }), 502
                 if outcome == 'rejected':
-                    return jsonify({
-                        'status': 'failure',
-                        'code': 'proof_verification_failed',
-                        'message': 'Your passport proof could not be verified. You can try again, or upload a photo of your passport instead.',
-                    }), 400
-                passport = {'status': 'verified', 'fields_block': reply['fieldsBlockArmored'], 'bundle': reply['bundleArmored']}
+                    # The submission still goes to legal, marked so they know the proof did not hold up.
+                    passport = {'status': 'rejected'}
+                else:
+                    passport = {'status': 'verified', 'fields_block': reply['fieldsBlockArmored'], 'bundle': reply['bundleArmored']}
             else:
                 status = data.get('passportStatus')
                 passport = {'status': status if status in ('failed', 'unavailable') else 'not-attempted'}
@@ -594,7 +595,7 @@ def submit():
 
         # If this is a legal submission with a Grant ID (reference), send to Kissflow
         if recipient == 'legal' and reference:
-            marker = 'zk-verified' if passport['status'] == 'verified' else None
+            marker = {'verified': 'zk-verified', 'rejected': 'zk-proof-failed'}.get(passport['status'])
             kissflow_success = send_identifier_to_kissflow(reference, identifier, marker)
             if kissflow_success:
                 logging.info(f"Successfully sent identifier {identifier} to Kissflow for Grant ID {reference}")
@@ -604,6 +605,9 @@ def submit():
                 # The email has already been sent successfully
 
         notice = f'Thank you! The relevant team was notified of your submission. Please record the identifier and refer to it in correspondence: {identifier}'
+        if passport and passport['status'] == 'rejected':
+            notice = ('Your passport proof could not be verified, so it was not included. Legal has been informed and may ask you for a photo of your passport. '
+                      + notice)
 
         return jsonify({'status': 'success', 'message': notice})
 

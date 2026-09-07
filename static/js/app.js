@@ -226,12 +226,6 @@ function acceptEncryptedData(data) {
 		postData('/submit-encrypted-data', dataArray)
 		.then(response => {
 			console.log(response.status, response.code || '');
-			if (response.code === "proof_verification_failed") {
-				// Keep the form; only the passport panel changes.
-				passportAttemptFailed(response.message, "failed");
-				turnstile.reset();
-				return;
-			}
 			if (response.code === "verification_unavailable") {
 				// Keep the form and the proof; a resubmit retries the verifier.
 				if (!passportProof) passportStatus = "unavailable";

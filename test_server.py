@@ -177,10 +177,18 @@ assert bundle_part.get_filename() == "passport-proof-bundle.json.pgp"
 assert bundle_part.get_payload(decode=True) == b"-----BEGIN PGP MESSAGE-----\nbundle\n-----END PGP MESSAGE-----"
 assert kissflow.call_args.args[2] == "zk-verified"
 
-response, send_email, _ = submit({**base, "passport": proof}, verifier=FakeVerifierResponse(200, {"verified": False}))
-assert response.status_code == 400
-assert response.json["code"] == "proof_verification_failed"
-assert not send_email.called
+# A proof that does not verify still reaches legal, marked as failed, with the applicant told.
+response, send_email, kissflow = submit({**base, "passport": proof}, verifier=FakeVerifierResponse(200, {"verified": False}))
+assert response.status_code == 200
+assert response.json["status"] == "success"
+assert response.json["message"].startswith("Your passport proof could not be verified")
+assert "Please record the identifier" in response.json["message"]
+sent = send_email.call_args.args[0]
+assert sent["Subject"].endswith("[ZK-PASSPORT-PROOF-FAILED]")
+body, file_part = sent.get_payload()
+assert body.get_payload().endswith(server.PASSPORT_STATUS["rejected"])
+assert file_part.get_filename() == "passport.jpg.pgp"
+assert kissflow.call_args.args[2] == "zk-proof-failed"
 
 for down in (
     FakeVerifierResponse(503, {"error": "busy"}),
@@ -201,10 +209,10 @@ for odd in (FakeVerifierResponse(400, {"error": "bad_request"}), FakeVerifierRes
     assert response.status_code == 502 and response.json["code"] == "verification_unavailable", odd
     assert not send_email.called
 
-# A proof field that is not an object is a bad proof.
+# A proof field that is not an object is a failed proof: the email goes out marked as such, without contacting the verifier.
 response, send_email, _ = submit({**base, "passport": "yes"})
-assert response.status_code == 400 and response.json["code"] == "proof_verification_failed"
-assert not send_email.called
+assert response.status_code == 200
+assert send_email.call_args.args[0]["Subject"].endswith("[ZK-PASSPORT-PROOF-FAILED]")
 
 for status in ("failed", "unavailable"):
     response, send_email, kissflow = submit({**base, "passportStatus": status})
