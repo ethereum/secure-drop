@@ -74,7 +74,7 @@ test("bundle records what the proof says and what verified it", async () => {
   assert.equal(bundle.verifiedAt, "2026-09-05T14:03:22.000Z")
   assert.equal(bundle.proofDate, proofDate.toISOString())
   assert.deepEqual(bundle.submission, { identifier: "legal:2026:09:05:14:03:22:4821", reference: "FY26-1234" })
-  assert.deepEqual(bundle.binding, { domain: settings.domain, scope: settings.scope, facematch: "strict", validitySeconds: 604800, chainId: 1 })
+  assert.deepEqual(bundle.binding, { domain: settings.domain, scope: "ef-onboarding", facematch: "strict", validitySeconds: 604800, chainId: 1 })
   assert.equal(bundle.query, expectedQuery)
   assert.equal(bundle.queryResult, queryResult)
   assert.equal(bundle.proofs, proofs)

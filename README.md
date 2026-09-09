@@ -58,7 +58,6 @@ Settings, in `.env`:
 
 ```
 ZKPASSPORT_DOMAIN='secure-drop.ethereum.org'   # the hostname proofs are bound to; must match on web and verifier
-ZKPASSPORT_SCOPE='ef-onboarding'               # a fixed label baked into every proof; must match on web and verifier
 ZKPASSPORT_FACEMATCH='strict'                  # strict (default), regular, or off
 ```
 
@@ -68,7 +67,7 @@ Tests: `cd verifier && npm test` for the verifier, `python test_server.py` for t
 
 The browser copy of the zkPassport SDK in `static/js/zkpassport-sdk.min.js` and the QR library in `static/js/qrcode.min.js` are built by `cd verifier && npm run build:browser`. The browser and the verifier must run the same SDK version, so rebuild the browser copy whenever the version in `verifier/package.json` changes.
 
-Deploying: the compose file covers local use. A production deployment needs the verifier image (published by CI as `<repo>-verifier`) running next to the web image, `VERIFIER_URL` set on the web container, and the three zkPassport settings set identically on both. The web app refuses to start without them. TODO: work out how to ship the verifier as part of this repo's deployment rather than as a separate manifest; adding it to the compose file is the cleanest if production can run from it.
+Deploying: the compose file covers local use. A production deployment needs the verifier image (published by CI as `<repo>-verifier`) running next to the web image, `VERIFIER_URL` set on the web container, and both zkPassport settings set identically on both. The web app refuses to start without them.
 
 ## Security
 

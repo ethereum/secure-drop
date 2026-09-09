@@ -20,7 +20,6 @@ services:
     restart: unless-stopped
     environment:
       ZKPASSPORT_DOMAIN: ${ZKPASSPORT_DOMAIN}
-      ZKPASSPORT_SCOPE: ${ZKPASSPORT_SCOPE}
       ZKPASSPORT_FACEMATCH: ${ZKPASSPORT_FACEMATCH:-strict}
     volumes:
       - verifier-cache:/tmp/zkp

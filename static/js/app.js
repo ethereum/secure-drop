@@ -90,6 +90,8 @@ var passportAttempt = 0;    // increments per click; callbacks from older attemp
 var zkPassportInstance = null;
 const PASSPORT_FIELDS = ["fullname", "firstname", "lastname", "birthdate", "nationality",
 	"gender", "document_number", "expiry_date", "issuing_country", "document_type"];
+// The label baked into every proof. Fixed, and must match SCOPE in verifier/src/query.js.
+const PASSPORT_SCOPE = "ef-onboarding";
 
 function setPassportStatus(text) {
 	document.getElementById("passport-status").textContent = text;
@@ -120,7 +122,7 @@ async function startPassportVerification() {
 			name: "Ethereum Foundation Secure Drop",
 			logo: location.origin + "/static/img/eth-diamond2x.png",
 			purpose: "Verify your passport for EF onboarding. Only the listed fields are shared with EF Legal.",
-			scope: section.dataset.scope,
+			scope: PASSPORT_SCOPE,
 			returnDeepLink: location.href
 		});
 		for (const field of PASSPORT_FIELDS) {

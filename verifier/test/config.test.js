@@ -4,22 +4,20 @@ const { loadConfig, FACEMATCH_MODES } = require("../src/config")
 
 const minimal = {
   ZKPASSPORT_DOMAIN: "localhost",
-  ZKPASSPORT_SCOPE: "ef-onboarding",
 }
 
 test("loads with defaults", () => {
   assert.deepEqual(loadConfig(minimal), {
     port: 3000,
     domain: "localhost",
-    scope: "ef-onboarding",
     facematch: "strict",
     publicKeysJsPath: "/app/static/js/public-keys.js",
     gitSha: "unknown",
   })
 })
 
-test("reports every missing variable at once", () => {
-  assert.throws(() => loadConfig({}), /ZKPASSPORT_DOMAIN, ZKPASSPORT_SCOPE/)
+test("reports a missing variable", () => {
+  assert.throws(() => loadConfig({}), /ZKPASSPORT_DOMAIN/)
 })
 
 test("validates the face match mode", () => {

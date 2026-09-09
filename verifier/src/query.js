@@ -1,5 +1,10 @@
 const { ZKPassport } = require("@zkpassport/sdk")
 
+// The label baked into every proof alongside the domain. Fixed in code because
+// its only job is to tell the verifier "this proof was made for this flow".
+// The browser's copy is PASSPORT_SCOPE in static/js/app.js and must match.
+const SCOPE = "ef-onboarding"
+
 // Every field the zkPassport SDK can disclose.
 const DISCLOSED_FIELDS = [
   "fullname",
@@ -29,4 +34,4 @@ function buildExpectedQuery({ domain, facematch }) {
   return builder.done().query
 }
 
-module.exports = { buildExpectedQuery, DISCLOSED_FIELDS }
+module.exports = { buildExpectedQuery, DISCLOSED_FIELDS, SCOPE }

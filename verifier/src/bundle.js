@@ -1,6 +1,7 @@
 const fs = require("node:fs")
 const path = require("node:path")
 const { classifyProofs, registryContext } = require("./verify")
+const { SCOPE } = require("./query")
 
 const BUNDLE_FORMAT = "secure-drop-zkpassport-bundle/1"
 const PACKAGES = ["@zkpassport/sdk", "@zkpassport/registry", "@zkpassport/utils", "@aztec/bb.js", "@aztec/bb.js-v4"]
@@ -78,7 +79,7 @@ async function buildBundle({ proofs, queryResult, expectedQuery, identifier, ref
     submission: { identifier, reference },
     binding: {
       domain: config.domain,
-      scope: config.scope,
+      scope: SCOPE,
       facematch: config.facematch,
       validitySeconds: DEFAULT_VALIDITY_SECONDS,
       chainId: CHAIN_ID,

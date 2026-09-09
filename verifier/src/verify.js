@@ -7,7 +7,7 @@ const {
   getMerkleRootFromDSCProof,
   getCurrentDateFromDisclosureProof,
 } = require("@zkpassport/utils")
-const { buildExpectedQuery, DISCLOSED_FIELDS } = require("./query")
+const { buildExpectedQuery, DISCLOSED_FIELDS, SCOPE } = require("./query")
 
 const DISCLOSED_BYTES_LENGTH = 90 // the SDK pads a passport's 88-character zone to 90
 const PASSPORT_MRZ_LENGTH = 88
@@ -177,7 +177,7 @@ function satisfiesConstraints(fields, expectedQuery) {
 // same check into "not verified", so after a clean SDK rejection the sidecar
 // repeats it: a throw means the RPC is down (our problem), an answer means the
 // rejection stands.
-function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(domain), checkCertificateRoot = async () => true }) {
+function createVerifier({ domain, facematch, zkPassport = new ZKPassport(domain), checkCertificateRoot = async () => true }) {
   const expectedQuery = buildExpectedQuery({ domain, facematch })
   const expectedMask = expectedMaskFor(expectedQuery)
   let queue = Promise.resolve()
@@ -206,7 +206,7 @@ function createVerifier({ domain, scope, facematch, zkPassport = new ZKPassport(
       // verification in this process; the default falls back to zkPassport's
       // hosted verifier and would send the disclosed fields there.
       result = await serialized(() =>
-        zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope, verifierMode: "local", writingDirectory: "/tmp/zkp" }),
+        zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope: SCOPE, verifierMode: "local", writingDirectory: "/tmp/zkp" }),
       )
     } catch (error) {
       if (error instanceof BusyError) throw error

@@ -10,7 +10,6 @@ environ.setdefault("SES_FROM_EMAIL", "secure-drop@example.org")
 environ.setdefault("NUMBEROFATTACHMENTS", "2")
 environ.setdefault("VERIFIER_URL", "http://verifier:3000/")
 environ.setdefault("ZKPASSPORT_DOMAIN", "localhost")
-environ.setdefault("ZKPASSPORT_SCOPE", "ef-onboarding")
 
 from datetime import datetime
 import server

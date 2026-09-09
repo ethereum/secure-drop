@@ -1,10 +1,10 @@
 // Shared synthetic passport and proof set for the sidecar tests. Shaped like
 // what the zkPassport app produces in default mode after a JSON round trip.
 const { getNumberOfPublicInputs, getServiceScopeHash, getScopeHash, getDisclosedBytesFromMrzAndMask } = require("@zkpassport/utils")
-const { buildExpectedQuery } = require("../src/query")
+const { buildExpectedQuery, SCOPE } = require("../src/query")
 const { expectedMaskFor } = require("../src/verify")
 
-const settings = { domain: "secure-drop.ethereum.org", scope: "ef-onboarding", facematch: "strict", gitSha: "abc1234" }
+const settings = { domain: "secure-drop.ethereum.org", facematch: "strict", gitSha: "abc1234" }
 const proofDate = new Date("2026-09-05T13:58:00Z")
 const certificateRoot = 0xabc123n
 const expectedMask = expectedMaskFor(buildExpectedQuery(settings))
@@ -37,7 +37,7 @@ function sampleProofs({ mrz = mrzBytes(), discloseMask = expectedMask, disclosed
     synthProof("data_check_integrity_sa_sha256_dg_sha256"),
     synthProof(
       "disclose_bytes",
-      { 1: Math.floor(proofDate.getTime() / 1000), 2: getServiceScopeHash(settings.domain), 3: getScopeHash(settings.scope) },
+      { 1: Math.floor(proofDate.getTime() / 1000), 2: getServiceScopeHash(settings.domain), 3: getScopeHash(SCOPE) },
       { committedInputs: { disclose_bytes: { discloseMask, disclosedBytes } } },
     ),
   ]
