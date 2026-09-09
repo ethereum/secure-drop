@@ -93,6 +93,17 @@ test("a non-passport document or a blank field is rejected even if the SDK says 
   assert.deepEqual(await verifyProof({ proofs: blankName, queryResult: clientResult }), { verified: false })
 })
 
+test("a passport issued to a single name verifies, with an empty first name", async () => {
+  const { verifyProof } = createVerifier({ ...settings, zkPassport: fakeSdk(true) })
+  for (const name of ["SUKARNO", "SUKARNO<<"]) {
+    const out = await verifyProof({ proofs: sampleProofs({ mrz: mrzBytes({ name }) }), queryResult: clientResult })
+    assert.equal(out.verified, true, name)
+    assert.equal(out.fields.fullname, "SUKARNO")
+    assert.equal(out.fields.lastname, "SUKARNO")
+    assert.equal(out.fields.firstname, "")
+  }
+})
+
 test("dates and gender are read from the passport bytes with plausibility checks", () => {
   const today = new Date("2026-09-06T00:00:00Z")
   assert.equal(fieldsFromProof(mrzBytes({ birth: "350517" }), today).birthdate, "1935-05-17")

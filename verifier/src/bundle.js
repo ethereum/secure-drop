@@ -39,7 +39,7 @@ function fieldsBlock({ fields, identifier, reference, verifiedAt, facematch }) {
     row("FaceMatch:", facematch),
     "",
     row("Full name:", fields.fullname),
-    row("First name:", fields.firstname),
+    row("First name:", fields.firstname || "(none)"),
     row("Last name:", fields.lastname),
     row("Date of birth:", fields.birthdate),
     row("Nationality:", fields.nationality),

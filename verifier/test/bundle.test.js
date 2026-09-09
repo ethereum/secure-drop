@@ -60,6 +60,7 @@ test("fields block reads as specified", () => {
     "and the data needed to verify it again.",
   ])
   assert.match(fieldsBlock({ fields: expectedFields, identifier: "x", reference: "", verifiedAt, facematch: "off" }), /Reference: +\(none\)/)
+  assert.match(fieldsBlock({ fields: { ...expectedFields, firstname: "" }, identifier: "x", reference: "", verifiedAt, facematch: "off" }), /First name: +\(none\)/)
 })
 
 test("bundle records what the proof says and what verified it", async () => {

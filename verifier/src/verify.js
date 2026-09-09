@@ -145,8 +145,12 @@ function fieldsFromProof(disclosedBytes, today = new Date()) {
     issuing_country: data.issuingCountry,
     document_type: data.documentType,
   }
+  // Every field must be present. The one exception is the first name: a
+  // passport issued to a person with a single name has a surname and no
+  // given names, and that is a valid passport, not a broken proof.
   for (const name of DISCLOSED_FIELDS) {
-    if (typeof fields[name] !== "string" || fields[name] === "") return null
+    if (typeof fields[name] !== "string") return null
+    if (fields[name] === "" && name !== "firstname") return null
   }
   return fields
 }
