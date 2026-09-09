@@ -2,6 +2,7 @@ const { test } = require("node:test")
 const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const path = require("node:path")
+const { DISCLOSED_FIELDS, SCOPE } = require("../src/query")
 
 // Guards against a code change quietly reintroducing behaviour this service
 // must never have: contacting zkPassport's hosted verifier, attaching a
@@ -36,4 +37,30 @@ test("sidecar source never reaches for the hosted verifier", () => {
 test("neither the sidecar nor the browser code attaches a policy or registers onResult", () => {
   assert.deepEqual(filesContaining([...src(), appJs], ".policy("), [])
   assert.deepEqual(filesContaining([...src(), appJs], "onResult"), [])
+})
+
+// The browser builds the real request and the verifier rebuilds the one it
+// expects, each from its own constants. If they drift, every proof is rejected
+// as a bad proof with nothing pointing at the cause, so they are compared here.
+function extract(source, pattern, what) {
+  const match = source.match(pattern)
+  assert.ok(match, `could not find ${what} in ${appJs}`)
+  return match[1]
+}
+
+test("the browser builds the same request the verifier expects", () => {
+  const source = fs.readFileSync(appJs, "utf8")
+  const fields = JSON.parse(extract(source, /const PASSPORT_FIELDS = (\[[^\]]*\]);/, "PASSPORT_FIELDS"))
+  assert.deepEqual([...fields].sort(), [...DISCLOSED_FIELDS].sort())
+  assert.equal(extract(source, /const PASSPORT_SCOPE = "([^"]*)";/, "PASSPORT_SCOPE"), SCOPE)
+  assert.match(source, /\.eq\("document_type", "passport"\)/)
+  assert.match(source, /\.facematch\(/)
+})
+
+test("the vendored browser SDK is the version the verifier runs", () => {
+  const bundle = path.join(__dirname, "..", "..", "static", "js", "zkpassport-sdk.min.js")
+  const banner = fs.readFileSync(bundle, "utf8").slice(0, 300)
+  const vendored = extract(banner, /@zkpassport\/sdk (\S+),/, "the SDK version banner")
+  const installed = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "node_modules", "@zkpassport", "sdk", "package.json"), "utf8")).version
+  assert.equal(vendored, installed, "run `npm run build:browser` after changing the SDK version")
 })
