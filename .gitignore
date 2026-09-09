@@ -26,3 +26,6 @@ htmlcov/
 .coverage
 .coverage.*
 *,cover
+
+# Local compose override, e.g. to run through a dev mail server instead of SES
+docker-compose.override.yaml

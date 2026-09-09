@@ -188,9 +188,9 @@ function resetPassportState() {
 	button.disabled = false;
 }
 
-function passportAttemptFailed(message, status) {
+function passportAttemptFailed(message) {
 	passportProof = null;
-	passportStatus = status || "failed";
+	passportStatus = "failed";
 	document.getElementById("zkpassport-qr").innerHTML = "";
 	document.getElementById("zkpassport-link").style.display = "none";
 	setPassportStatus(message);
@@ -232,7 +232,7 @@ function acceptEncryptedData(data) {
 				// Keep the form and the proof; a resubmit retries the verifier.
 				if (!passportProof) passportStatus = "unavailable";
 				passportServiceUnavailable(response.message);
-				turnstile.reset();
+				if (cfTurnstileBlock) turnstile.reset();
 				return;
 			}
 			displayResult(response.status, response.message)

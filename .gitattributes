@@ -1,0 +1,3 @@
+# Vendored browser libraries (openpgp, dropzone, and the zkPassport SDK and QR
+# library built by verifier/scripts/build-browser-sdk.js). Collapsed by default in GitHub diffs.
+static/js/*.min.js linguist-generated=true
