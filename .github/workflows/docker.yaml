@@ -57,6 +57,18 @@ jobs:
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # branch name for any branch build (e.g. master)
+            type=ref,event=branch
+            # pr-<n> for pull request builds (not pushed)
+            type=ref,event=pr
+            # semver tags for v*.*.* releases
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # immutable, unique tag so image updaters have something to move to
+            type=sha,format=long,prefix=sha-
+            # latest on master pushes so argocd-image-updater's newest-build picks it up
+            type=raw,value=latest,enable={{is_default_branch}}
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
