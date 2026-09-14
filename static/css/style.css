@@ -368,3 +368,34 @@ textarea#text {
 form > * {
     animation: fadeIn 0.5s ease-out;
 }
+
+/* zkPassport passport verification (legal submissions) */
+#passport-section {
+    margin: 1rem 0;
+}
+#verify-passport {
+    background-color: #48bb78;
+    color: white;
+}
+#verify-passport:hover:not(:disabled) {
+    background-color: #38a169;
+}
+#verify-passport:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+#passport-panel {
+    margin-top: 1rem;
+}
+#zkpassport-qr svg {
+    width: 220px;
+    height: 220px;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+#passport-status {
+    margin-top: 0.5rem;
+    font-size: 14px;
+    color: #333;
+    line-height: 1.4;
+}
