@@ -1,5 +1,5 @@
 var publicKeys=[];
-publicKeys['legal']=publicKeys['esp']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
+/*publicKeys['legal']=publicKeys['esp']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: FlowCrypt [BUILD_REPLACEABLE_VERSION] Gmail Encryption
 Comment: Seamlessly send and receive encrypted email
 
@@ -13,6 +13,21 @@ bwMBCAfCYQQYFggACQUCXoqO9AIbDAAKCRBe74C+UlrwF06BAP9RknC+B31g
 F2MnRflOP/igoeQQHVIMtDu7EDF8h77ExwD/XMtHOGwub2kL/fgxQr1GeTwe
 IVakHh5OAkcmYUCHJgU=
 =AdLA
+-----END PGP PUBLIC KEY BLOCK-----`;
+*/
+// JossDuff key for testing - REPLACE BEFORE PROD
+publicKeys['legal']=publicKeys['esp']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEap7EgxYJKwYBBAHaRw8BAQdANOcfTbD7bfV3ZebkmimZC83N+/ESDV+o5h2C
+pvpsqG20Ikpvc3MgVGVzdCA8am9zcy5kdWZmQGV0aGVyZXVtLm9yZz6IkwQTFgoA
+OxYhBKbjq+3p6jM/iKqW0yzPUf9bk+XJBQJqnsSDAhsDBQsJCAcCAiICBhUKCQgL
+AgQWAgMBAh4HAheAAAoJECzPUf9bk+XJGAMBALyaiXKq99eqUcv1JMHXqsBe6vxT
+t3LQ8Tc0hftbC8boAP44ExlobNwXzsDypUjFMwk2e31cEkrnlL55PeJIcQFSCbg4
+BGqexIMSCisGAQQBl1UBBQEBB0DADhRYTRZwE2v7lHwzeclQOooPQZZflyqNiBJZ
+YeiwNQMBCAeIeAQYFgoAIBYhBKbjq+3p6jM/iKqW0yzPUf9bk+XJBQJqnsSDAhsM
+AAoJECzPUf9bk+XJaeEBAJshQoK2K1CqCGs/qVxtmcddUZtBmCG9DNrDz+D0Spfd
+AQD+dZjmw8Fb7uvqgVHd/HpxfZzSBl6igOTJ0M6GVCjqDA==
+=ZU2I
 -----END PGP PUBLIC KEY BLOCK-----`;
 
 publicKeys['security']=`-----BEGIN PGP PUBLIC KEY BLOCK-----
