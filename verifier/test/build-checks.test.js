@@ -42,25 +42,32 @@ test("neither the sidecar nor the browser code attaches a policy or registers on
 // The browser builds the real request and the verifier rebuilds the one it
 // expects, each from its own constants. If they drift, every proof is rejected
 // as a bad proof with nothing pointing at the cause, so they are compared here.
-function extract(source, pattern, what) {
+function extract(source, pattern, what, file) {
   const match = source.match(pattern)
-  assert.ok(match, `could not find ${what} in ${appJs}`)
+  assert.ok(match, `could not find ${what} in ${file}`)
   return match[1]
 }
 
 test("the browser builds the same request the verifier expects", () => {
   const source = fs.readFileSync(appJs, "utf8")
-  const fields = JSON.parse(extract(source, /const PASSPORT_FIELDS = (\[[^\]]*\]);/, "PASSPORT_FIELDS"))
+  const fieldsSource = extract(source, /const PASSPORT_FIELDS = (\[[^\]]*\]);/, "PASSPORT_FIELDS", appJs)
+  let fields
+  try {
+    fields = JSON.parse(fieldsSource)
+  } catch {
+    assert.fail(`PASSPORT_FIELDS in ${appJs} must be a plain array of double-quoted strings, no comments or trailing commas`)
+  }
   assert.deepEqual([...fields].sort(), [...DISCLOSED_FIELDS].sort())
-  assert.equal(extract(source, /const PASSPORT_SCOPE = "([^"]*)";/, "PASSPORT_SCOPE"), SCOPE)
-  assert.match(source, /\.eq\("document_type", "passport"\)/)
-  assert.match(source, /\.facematch\(/)
+  assert.equal(extract(source, /const PASSPORT_SCOPE = "([^"]*)";/, "PASSPORT_SCOPE", appJs), SCOPE)
+  // The same two constraints query.js applies, guarded the same way.
+  assert.match(source, /\n\t\tquery = query\.eq\("document_type", "passport"\);/)
+  assert.match(source, /if \(section\.dataset\.facematch !== "off"\) \{\s*query = query\.facematch\(section\.dataset\.facematch\);\s*\}/)
 })
 
 test("the vendored browser SDK is the version the verifier runs", () => {
   const bundle = path.join(__dirname, "..", "..", "static", "js", "zkpassport-sdk.min.js")
   const banner = fs.readFileSync(bundle, "utf8").slice(0, 300)
-  const vendored = extract(banner, /@zkpassport\/sdk (\S+),/, "the SDK version banner")
+  const vendored = extract(banner, /@zkpassport\/sdk (\S+),/, "the SDK version banner", bundle)
   const installed = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "node_modules", "@zkpassport", "sdk", "package.json"), "utf8")).version
   assert.equal(vendored, installed, "run `npm run build:browser` after changing the SDK version")
 })
