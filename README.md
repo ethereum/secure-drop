@@ -21,7 +21,7 @@ Docker Compose.
 * AWS SES (for email delivery)
 * Cloudflare Turnstile (for bot protection)
 * Kissflow API (optional - for KYC submission tracking)
-* zkPassport (optional passport verification for Legal submissions, see below). The pieces involved: the zkPassport mobile app on the applicant's phone, zkPassport's end-to-end encrypted bridge relay that carries the proof from the phone to the browser, a per-domain config lookup the browser SDK makes against zkPassport's dashboard API, zkPassport's circuits CDN, an Ethereum RPC (currently the SDK's built-in Alchemy key), and a 4 MB reference string fetched over plain HTTP from `crs.aztec-cdn.foundation` (falling back to `crs.aztec-labs.com`), all of which the verifier reads during verification.
+* zkPassport (optional passport verification for Legal submissions, see below). The pieces involved: the zkPassport mobile app on the applicant's phone, zkPassport's end-to-end encrypted bridge relay that carries the proof from the phone to the browser, a per-domain config lookup the browser SDK makes against zkPassport's dashboard API, zkPassport's circuits CDN and an Ethereum RPC (currently the SDK's built-in Alchemy key) that the verifier reads during verification.
 
 
 ## New setup
@@ -59,6 +59,7 @@ Settings, in `.env`:
 ```
 ZKPASSPORT_DOMAIN='secure-drop.ethereum.org'   # the hostname proofs are bound to; must match on web and verifier
 ZKPASSPORT_FACEMATCH='strict'                  # strict (default), regular, or off
+CACHE_DIR='/tmp/zkp'                           # verifier only; where it caches verification artifacts (default shown)
 ```
 
 `docker compose up` starts the verifier next to the web app and points the web app at it with `VERIFIER_URL`.
@@ -67,7 +68,7 @@ Tests: `cd verifier && npm test` for the verifier, `python test_server.py` for t
 
 The browser copy of the zkPassport SDK in `static/js/zkpassport-sdk.min.js` and the QR library in `static/js/qrcode.min.js` are built by `cd verifier && npm run build:browser`. The browser and the verifier must run the same SDK version, so rebuild the browser copy whenever the version in `verifier/package.json` changes.
 
-Deploying: the compose file covers local use. A production deployment needs the verifier image (published by CI as `<repo>-verifier`) running next to the web image, `VERIFIER_URL` set on the web container, and both zkPassport settings set identically on both. The web app refuses to start without them. The verifier writes to two places: its cache directory, `/tmp/zkp` (move it with `CACHE_DIR`), and `/tmp`, where the proving library puts a Unix socket; on a read-only filesystem both need a writable mount. The cache is disposable, about 5 MB, and is re-downloaded on the first verification after a cold start, so an `emptyDir` works; a persistent volume only saves that one slow first request after a reschedule. The EF deployment runs the verifier as its own pod and rolls it forward automatically when a new image is published.
+Deploying: the compose file covers local use. A production deployment needs the verifier image (published by CI as `<repo>-verifier`) running next to the web image, `VERIFIER_URL` set on the web container, and both zkPassport settings set identically on both. The web app refuses to start without them. The verifier writes to two places: its cache directory (`CACHE_DIR`, default `/tmp/zkp`) and `/tmp`, where the proving library puts a Unix socket; on a read-only filesystem both need a writable mount. The cache is disposable, about 5 MB, and is re-downloaded on the first verification after a cold start, so an `emptyDir` works; a persistent volume only saves that one slow first request after a reschedule. The EF deployment runs the verifier as its own pod and rolls it forward automatically when a new image is published.
 
 ## Security
 
