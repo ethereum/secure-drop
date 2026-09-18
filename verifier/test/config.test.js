@@ -12,6 +12,8 @@ test("loads with defaults", () => {
     domain: "localhost",
     facematch: "strict",
     publicKeysJsPath: "/app/static/js/public-keys.js",
+    cacheDir: "/tmp/zkp",
+    crsPath: "/tmp/zkp/.bb-crs",
     gitSha: "unknown",
   })
 })
@@ -35,4 +37,7 @@ test("validates the port", () => {
 
 test("overrides are applied", () => {
   assert.equal(loadConfig({ ...minimal, PUBLIC_KEYS_JS_PATH: "/x/public-keys.js" }).publicKeysJsPath, "/x/public-keys.js")
+  const moved = loadConfig({ ...minimal, CACHE_DIR: "/x/cache" })
+  assert.equal(moved.cacheDir, "/x/cache")
+  assert.equal(moved.crsPath, "/x/cache/.bb-crs")
 })

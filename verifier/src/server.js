@@ -108,12 +108,17 @@ function createApp({ config, legalKey, verifier, registryClient, log = console.l
 
 async function main() {
   const config = loadConfig()
-  fs.mkdirSync("/tmp/zkp", { recursive: true })
+  fs.mkdirSync(config.cacheDir, { recursive: true })
+  // The bb binary the proving library spawns reads CRS_PATH from the
+  // environment; there is no way to pass it through the SDK.
+  process.env.CRS_PATH = config.crsPath
   const legalKey = await loadEncryptionKey(config.publicKeysJsPath, "legal")
+  // So the deployed key is visible in the logs, e.g. a test key left in place.
+  console.log(`legal key ${legalKey.getFingerprint()} (${legalKey.getUserIDs().join(", ")})`)
   const registryClient = await setUpRegistry()
   const verifier = createVerifier({ ...config, checkCertificateRoot: registryClient.checkCertificateRoot })
   const server = http.createServer(createApp({ config, legalKey, verifier, registryClient }))
-  server.listen(config.port, () => console.log(`verifier listening on ${config.port}, face match ${config.facematch}`))
+  server.listen(config.port, () => console.log(`verifier listening on ${config.port}, face match ${config.facematch}, cache ${config.cacheDir}`))
 }
 
 if (require.main === module) {

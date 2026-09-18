@@ -9,11 +9,19 @@ function loadConfig(env = process.env) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`)
   }
 
+  // Everything the verifier writes lives under one directory: the circuit
+  // artifacts the SDK downloads, and the 4 MB reference string the native bb
+  // binary keeps in .bb-crs. The binary learns that path only from the
+  // CRS_PATH environment variable (it defaults to $HOME/.bb-crs), so server.js
+  // exports crsPath before anything spawns it.
+  const cacheDir = path.resolve(env.CACHE_DIR || "/tmp/zkp")
   const config = {
     port: Number(env.PORT || 3000),
     domain: env.ZKPASSPORT_DOMAIN,
     facematch: env.ZKPASSPORT_FACEMATCH || "strict",
     publicKeysJsPath: path.resolve(env.PUBLIC_KEYS_JS_PATH || "/app/static/js/public-keys.js"),
+    cacheDir,
+    crsPath: path.join(cacheDir, ".bb-crs"),
     gitSha: env.GIT_SHA || "unknown",
   }
 
