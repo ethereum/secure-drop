@@ -75,7 +75,7 @@ def get_identifier(recipient, now=None, randint=None):
 
 # Attachment names the verifier's output uses. Uploads with these names are
 # refused so that an attachment carrying one can only have come from the verifier.
-RESERVED_ATTACHMENT_NAMES = {'passport-fields-verified.txt', 'passport-proof-bundle.json'}
+RESERVED_ATTACHMENT_NAMES = {'passport-fields-verified.txt', 'passport-proof-bundle.json', 'passport-proof-failed.json'}
 
 # One line at the end of every legal email telling legal where the passport
 # verification stands for this submission.
@@ -83,7 +83,9 @@ PASSPORT_STATUS = {
     'verified': "Passport verification: verified with zkPassport. The passport fields are in the attached passport-fields-verified.txt.pgp; the proof bundle is attached as passport-proof-bundle.json.pgp.",
     'not-attempted': "Passport verification: not attempted.",
     'failed': "Passport verification: attempted, but the applicant's phone did not produce a proof. The applicant submitted without it.",
-    'rejected': "Passport verification: FAILED. The zkPassport proof the applicant submitted did not verify. No verified passport fields are attached.",
+    'rejected': "Passport verification: FAILED. The zkPassport proof the applicant submitted did not verify. No verified passport fields are attached. The reason is in the attached passport-proof-failed.json.pgp. Forward it to the engineering contact if the applicant disputes it.",
+    'rejected-unexplained': "Passport verification: FAILED. The zkPassport proof the applicant submitted did not verify. No verified passport fields are attached. The verifier did not include its reasons, so there is no diagnostics attachment.",
+    'rejected-malformed': "Passport verification: FAILED. The passport field of the submission was not a proof, so the verifier was not consulted. No verified passport fields and no diagnostics are attached.",
     'unavailable': "Passport verification: attempted, but the verification service was unavailable. The applicant submitted without it.",
 }
 
@@ -103,7 +105,10 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
     if reference:
         subject = f'{reference} {subject}'
     if passport:
-        plain_text += '\n\n' + PASSPORT_STATUS[passport['status']]
+        status_key = passport['status']
+        if status_key == 'rejected' and not passport.get('diagnostics'):
+            status_key = 'rejected-unexplained' if passport.get('consulted') else 'rejected-malformed'
+        plain_text += '\n\n' + PASSPORT_STATUS[status_key]
         if passport['status'] == 'verified':
             subject += ' [ZK-VERIFIED-PASSPORT]'
         elif passport['status'] == 'rejected':
@@ -143,6 +148,12 @@ def create_email(to_email, identifier, text, all_attachments, reference='', pass
         part = MIMEApplication(passport['bundle'].encode('utf-8'))
         part.add_header('Content-Disposition', 'attachment', filename='passport-proof-bundle.json.pgp')
         msg.attach(part)
+    # Why a proof was not accepted, encrypted to the same key. Lets legal (or
+    # engineering, via legal) see the verifier's reasons and replay the proof.
+    if passport and passport.get('diagnostics'):
+        part = MIMEApplication(passport['diagnostics'].encode('utf-8'))
+        part.add_header('Content-Disposition', 'attachment', filename='passport-proof-failed.json.pgp')
+        msg.attach(part)
 
     return msg
 
@@ -170,7 +181,8 @@ def verify_passport(passport, identifier, reference):
     """
     Sends a zkPassport proof to the verifier sidecar.
     Returns ('verified', reply) with the PGP-armored 'fieldsBlockArmored' and
-    'bundleArmored', ('rejected', None) when the proof did not verify, or
+    'bundleArmored', ('rejected', reply) when the proof did not verify, where
+    reply carries the PGP-armored 'diagnosticsArmored' saying why, or
     ('unavailable', None) when the verifier could not be used right now.
     """
     try:
@@ -197,7 +209,7 @@ def verify_passport(passport, identifier, reference):
         logging.error(f"Verifier reply for {identifier} is not an object")
         return 'unavailable', None
     if not reply.get('verified'):
-        return 'rejected', None
+        return 'rejected', reply
     if not (isinstance(reply.get('fieldsBlockArmored'), str) and isinstance(reply.get('bundleArmored'), str)):
         logging.error(f"Verifier reply for {identifier} is missing the encrypted blocks")
         return 'unavailable', None
@@ -573,8 +585,14 @@ def submit():
                         'message': 'Passport verification is not available right now. You can try again in a few minutes, or upload a photo of your passport instead.',
                     }), 502
                 if outcome == 'rejected':
-                    # The submission still goes to legal, marked so they know the proof did not hold up.
-                    passport = {'status': 'rejected'}
+                    # The submission still goes to legal, marked so they know the proof did
+                    # not hold up, with the verifier's encrypted reasons when it gave them.
+                    diagnostics = reply.get('diagnosticsArmored') if isinstance(reply, dict) else None
+                    passport = {
+                        'status': 'rejected',
+                        'diagnostics': diagnostics if isinstance(diagnostics, str) else None,
+                        'consulted': isinstance(proof, dict),  # False when the field was not a proof at all
+                    }
                 else:
                     passport = {'status': 'verified', 'fields_block': reply['fieldsBlockArmored'], 'bundle': reply['bundleArmored']}
             else:

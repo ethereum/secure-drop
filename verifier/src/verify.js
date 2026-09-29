@@ -1,3 +1,4 @@
+const util = require("node:util")
 const { ZKPassport } = require("@zkpassport/sdk")
 const {
   DisclosedData,
@@ -103,12 +104,37 @@ function disclosedBytesOf(disclosureProof, expectedMask) {
   return inputs.disclosedBytes
 }
 
-function looksLikeProofSubmission({ proofs, queryResult }, facematch, expectedMask) {
+// Checks that the request is the proof set our query produces. Returns
+// { roles, disclosedBytes } when it is, so the caller need not decode the
+// proofs again, or { problem } saying why not in a sentence legal can forward.
+function shapeCheck({ proofs, queryResult }, facematch, expectedMask) {
   const roles = classifyProofs(proofs, facematch !== "off")
-  if (!roles || disclosedBytesOf(roles.disclosure, expectedMask) === null) return false
-  if (roles.facematch && roles.facematch.committedInputs?.facematch?.mode !== facematch) return false
-  if (queryResult === null || typeof queryResult !== "object") return false
-  return JSON.stringify(queryResult).length <= MAX_QUERY_RESULT_JSON
+  if (!roles) return { problem: "the request does not contain exactly the proof set our query produces" }
+  const disclosedBytes = disclosedBytesOf(roles.disclosure, expectedMask)
+  if (disclosedBytes === null) return { problem: "the disclosure proof does not commit to the bytes our query reveals" }
+  if (roles.facematch && roles.facematch.committedInputs?.facematch?.mode !== facematch) return { problem: `the face match proof was not made in ${facematch} mode` }
+  if (queryResult === null || typeof queryResult !== "object") return { problem: "queryResult is not an object" }
+  if (JSON.stringify(queryResult).length > MAX_QUERY_RESULT_JSON) return { problem: "queryResult is too large" }
+  return { roles, disclosedBytes }
+}
+
+// The SDK explains a rejection only through console.warn, which it keeps
+// doing: the lines still reach stderr as before, and are also collected here
+// so they can travel to legal. Verifications run one at a time, so lines
+// printed during this task come from this request; the bookkeeping other
+// requests do concurrently (registry lookups, encryption) does not warn.
+async function withCapturedWarnings(task) {
+  const warnings = []
+  const original = console.warn
+  console.warn = (...args) => {
+    warnings.push(util.format(...args))
+    original.apply(console, args)
+  }
+  try {
+    return { result: await task(), warnings }
+  } finally {
+    console.warn = original
+  }
 }
 
 // YYMMDD from the passport zone to YYYY-MM-DD. Two-digit years are read as
@@ -193,21 +219,29 @@ function createVerifier({ domain, facematch, cacheDir = "/tmp/zkp", zkPassport =
     return run
   }
 
-  // Resolves { verified: false } for anything malformed or unproven. Throws
-  // BusyError when the line is full and ServiceUnavailableError when a service
-  // the verification depends on failed.
+  // Resolves { verified: true, fields } or { verified: false, diagnostics },
+  // where diagnostics says how far the request got ("shape", "sdk", "fields",
+  // "constraints") and why it stopped. Diagnostics may quote client data, so
+  // the caller encrypts them for legal and never returns them in the clear.
+  // Throws BusyError when the line is full and ServiceUnavailableError when a
+  // service the verification depends on failed.
   async function verifyProof({ proofs, queryResult }) {
-    if (!looksLikeProofSubmission({ proofs, queryResult }, facematch, expectedMask)) return { verified: false }
-    const roles = classifyProofs(proofs, facematch !== "off")
+    const rejected = (stage, details = {}) => ({ verified: false, diagnostics: { stage, reasons: [], ...details } })
 
-    let result
+    const shape = shapeCheck({ proofs, queryResult }, facematch, expectedMask)
+    if (shape.problem) return rejected("shape", { reasons: [shape.problem] })
+    const { roles, disclosedBytes } = shape
+
+    let result, warnings
     try {
       // originalQuery is ours, never the client's. verifierMode "local" keeps
       // verification in this process; the default falls back to zkPassport's
       // hosted verifier and would send the disclosed fields there.
-      result = await serialized(() =>
-        zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope: SCOPE, verifierMode: "local", writingDirectory: cacheDir }),
-      )
+      ;({ result, warnings } = await serialized(() =>
+        withCapturedWarnings(() =>
+          zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope: SCOPE, verifierMode: "local", writingDirectory: cacheDir }),
+        ),
+      ))
     } catch (error) {
       if (error instanceof BusyError) throw error
       // The shape checks above stop client data from breaking the SDK, so an
@@ -216,16 +250,22 @@ function createVerifier({ domain, facematch, cacheDir = "/tmp/zkp", zkPassport =
     }
     if (!result.verified) {
       const { root, proofDate } = registryContext(roles)
+      let rootValid
       try {
-        await checkCertificateRoot(root, Math.floor(proofDate.getTime() / 1000))
+        rootValid = await checkCertificateRoot(root, Math.floor(proofDate.getTime() / 1000))
       } catch (error) {
         throw new ServiceUnavailableError(error)
       }
-      return { verified: false }
+      return rejected("sdk", {
+        reasons: warnings,
+        queryResultErrors: result.queryResultErrors ?? null,
+        rootCheck: { root, proofDate: proofDate.toISOString(), valid: rootValid },
+      })
     }
 
-    const fields = fieldsFromProof(disclosedBytesOf(roles.disclosure, expectedMask))
-    if (!fields || !satisfiesConstraints(fields, expectedQuery)) return { verified: false }
+    const fields = fieldsFromProof(disclosedBytes)
+    if (!fields) return rejected("fields", { reasons: ["the disclosed bytes do not form a complete passport record", ...warnings] })
+    if (!satisfiesConstraints(fields, expectedQuery)) return rejected("constraints", { reasons: ["a disclosed field does not satisfy the query, e.g. the document is not a passport", ...warnings] })
     return { verified: true, fields }
   }
 
@@ -235,7 +275,8 @@ function createVerifier({ domain, facematch, cacheDir = "/tmp/zkp", zkPassport =
 module.exports = {
   createVerifier,
   classifyProofs,
-  looksLikeProofSubmission,
+  wellFormedProof,
+  shapeCheck,
   fieldsFromProof,
   expectedMaskFor,
   registryContext,

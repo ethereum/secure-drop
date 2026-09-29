@@ -145,7 +145,7 @@ assert response.status_code == 400
 assert not send_email.called
 
 # Uploads must not impersonate the verifier's attachments, for any recipient.
-for name in ("passport-fields-verified.txt", "Passport-Proof-Bundle.json", "../passport-fields-verified.txt"):
+for name in ("passport-fields-verified.txt", "Passport-Proof-Bundle.json", "../passport-fields-verified.txt", "passport-proof-failed.json"):
     response, send_email, _ = submit({**base, "recipient": "devcon", "files": [{"filename": name, "attachment": "x"}]})
     assert response.status_code == 400 and "reserved" in response.json["message"], name
     assert not send_email.called
@@ -177,16 +177,29 @@ assert bundle_part.get_payload(decode=True) == b"-----BEGIN PGP MESSAGE-----\nbu
 assert kissflow.call_args.args[2] == "zk-verified"
 
 # A proof that does not verify still reaches legal, marked as failed, with the applicant told.
-response, send_email, kissflow = submit({**base, "passport": proof}, verifier=FakeVerifierResponse(200, {"verified": False}))
+rejected = FakeVerifierResponse(200, {"verified": False, "diagnosticsArmored": "-----BEGIN PGP MESSAGE-----\nwhy\n-----END PGP MESSAGE-----"})
+response, send_email, kissflow = submit({**base, "passport": proof}, verifier=rejected)
 assert response.status_code == 200
 assert response.json["status"] == "success"
 assert response.json["message"].startswith("Your passport proof could not be verified")
 assert "Please record the identifier" in response.json["message"]
 sent = send_email.call_args.args[0]
 assert sent["Subject"].endswith("[ZK-PASSPORT-PROOF-FAILED]")
-body, file_part = sent.get_payload()
+body, file_part, failed_part = sent.get_payload()
 assert body.get_payload().endswith(server.PASSPORT_STATUS["rejected"])
+assert "passport-proof-failed.json.pgp" in server.PASSPORT_STATUS["rejected"]
 assert file_part.get_filename() == "passport.jpg.pgp"
+assert failed_part.get_filename() == "passport-proof-failed.json.pgp"  # the verifier's reasons, encrypted to legal
+assert failed_part.get_payload(decode=True) == b"-----BEGIN PGP MESSAGE-----\nwhy\n-----END PGP MESSAGE-----"
+assert kissflow.call_args.args[2] == "zk-proof-failed"
+
+# A verifier that rejects without saying why (or an older one) still gets the submission through, with the status line saying so.
+response, send_email, kissflow = submit({**base, "passport": proof}, verifier=FakeVerifierResponse(200, {"verified": False}))
+assert response.status_code == 200
+sent = send_email.call_args.args[0]
+assert sent["Subject"].endswith("[ZK-PASSPORT-PROOF-FAILED]")
+body, file_part = sent.get_payload()
+assert body.get_payload().endswith(server.PASSPORT_STATUS["rejected-unexplained"])
 assert kissflow.call_args.args[2] == "zk-proof-failed"
 
 for down in (
@@ -211,7 +224,10 @@ for odd in (FakeVerifierResponse(400, {"error": "bad_request"}), FakeVerifierRes
 # A proof field that is not an object is a failed proof: the email goes out marked as such, without contacting the verifier.
 response, send_email, _ = submit({**base, "passport": "yes"})
 assert response.status_code == 200
-assert send_email.call_args.args[0]["Subject"].endswith("[ZK-PASSPORT-PROOF-FAILED]")
+sent = send_email.call_args.args[0]
+assert sent["Subject"].endswith("[ZK-PASSPORT-PROOF-FAILED]")
+assert len(sent.get_payload()) == 2  # no diagnostics attachment: the verifier was never asked
+assert sent.get_payload()[0].get_payload().endswith(server.PASSPORT_STATUS["rejected-malformed"])
 
 for status in ("failed", "unavailable"):
     response, send_email, kissflow = submit({**base, "passportStatus": status})

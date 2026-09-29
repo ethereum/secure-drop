@@ -225,6 +225,8 @@ function acceptEncryptedData(data) {
 			dataArray['passportStatus'] = passportStatus;
 		}
 
+		// The server verifies the proof before it answers, which can take a while.
+		setSubmitLabel(passportProof ? "Verifying proof…" : "Sending…");
 		postData('/submit-encrypted-data', dataArray)
 		.then(response => {
 			console.log(response.status, response.code || '');
@@ -232,6 +234,7 @@ function acceptEncryptedData(data) {
 				// Keep the form and the proof; a resubmit retries the verifier.
 				if (!passportProof) passportStatus = "unavailable";
 				passportServiceUnavailable(response.message);
+				setSubmitLabel();
 				if (cfTurnstileBlock) turnstile.reset();
 				return;
 			}
@@ -239,7 +242,7 @@ function acceptEncryptedData(data) {
 		})
 		.catch(error => {
 			console.error(error);
-			displayResult('error', 'An error occurred while submitting the form. Please try again later.')
+			displayResult('error', `An error occurred while submitting the form (${error.message}). Please try again later.`)
 		});
 	}
 }
@@ -331,7 +334,8 @@ document.addEventListener('DOMContentLoaded', function() {
 		}
 		
 		captchaExpired(); // disable the submit button this way to prevent double submission
-		
+		setSubmitLabel("Encrypting…");
+
 		dataArray = { message: '', files: [], requiredChunks: selectedFiles.length+1, receivedChunks: 0 };
 
 		encrypt(text.value).then(acceptEncryptedData);
@@ -390,7 +394,16 @@ function captchaExpired() {
 	document.getElementById("button").disabled = true;
 }
 
+// Tells the applicant what the greyed-out submit button is waiting for.
+// Called with no text to put the original label back.
+function setSubmitLabel(text) {
+	const button = document.getElementById("button");
+	if (!button.dataset.label) button.dataset.label = button.textContent;
+	button.textContent = text || button.dataset.label;
+}
+
 async function postData(url = '/', data = {}) {
+	const started = Date.now();
 	const response = await fetch(url, {
 	  method: 'POST',
 	  headers: {
@@ -398,7 +411,13 @@ async function postData(url = '/', data = {}) {
 	  },
 	  body: JSON.stringify(data)
 	});
-	return response.json();
+	const text = await response.text();
+	try {
+		return JSON.parse(text);
+	} catch (e) {
+		// Not an answer from the app: the server or a proxy in front of it failed.
+		throw new Error(`server returned ${response.status} after ${Math.round((Date.now() - started) / 1000)} s`);
+	}
 }
   
 function displayResult(status, message) {

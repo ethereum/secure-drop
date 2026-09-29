@@ -4,6 +4,7 @@ const http = require("node:http")
 const openpgp = require("openpgp")
 const { createApp, MAX_BODY_BYTES } = require("../src/server")
 const { BusyError, ServiceUnavailableError } = require("../src/verify")
+const { FAILURE_FORMAT } = require("../src/bundle")
 const { settings, sampleProofs, clientResult, expectedFields } = require("./fixtures")
 
 const manifest = { version: "1.0.0", root: "0xmanifestroot", circuits: Object.fromEntries(sampleProofs().map((p) => [p.name, { hash: `0xhash-${p.name}`, size: 1 }])) }
@@ -66,9 +67,31 @@ test("bad requests", async () => {
   assert.deepEqual(await post("/verify", JSON.stringify({ ...submission(), pad: "x".repeat(MAX_BODY_BYTES) }), true), { status: 413, body: { error: "bad_request" } })
 })
 
-test("a proof that does not verify yields verified:false and nothing else", async () => {
-  behaviour = { verified: false }
-  assert.deepEqual(await post("/verify", submission()), { status: 200, body: { verified: false } })
+test("a proof that does not verify yields verified:false and the reasons, encrypted to legal", async () => {
+  behaviour = { verified: false, diagnostics: { stage: "sdk", reasons: ["The proof comes from a different domain than the one expected"], queryResultErrors: { scope: { expected: "a", received: "b" } }, rootCheck: { root: "0xroot", proofDate: "2026-09-05T13:58:00.000Z", valid: true } } }
+  logs.length = 0
+  const { status, body } = await post("/verify", submission())
+  assert.equal(status, 200)
+  assert.deepEqual(Object.keys(body).sort(), ["diagnosticsArmored", "verified"])
+  assert.equal(body.verified, false)
+
+  const failure = JSON.parse(await decrypt(body.diagnosticsArmored))
+  assert.equal(failure.format, FAILURE_FORMAT)
+  assert.equal(failure.stage, "sdk")
+  assert.deepEqual(failure.reasons, ["The proof comes from a different domain than the one expected"])
+  assert.deepEqual(failure.queryResultErrors, { scope: { expected: "a", received: "b" } })
+  assert.equal(failure.rootCheck.valid, true)
+  assert.equal(failure.submission.identifier, "legal:2026:09:06:10:00:00:1234")
+  assert.deepEqual(failure.proofs, submission().proofs, "the request travels with the diagnosis so it can be replayed")
+  assert.deepEqual(failure.queryResult, clientResult)
+  assert.equal(failure.binding.domain, settings.domain)
+
+  // Our log line carries the stage only; neither the reasons nor the request reach it.
+  assert.match(logs.join("\n"), /not verified at sdk \(\d+ ms\)/)
+  assert.ok(!logs.join("\n").includes("different domain"))
+  for (const value of Object.values(expectedFields)) {
+    assert.ok(!logs.join("\n").includes(value), `${value} must not appear in logs`)
+  }
 })
 
 test("a verified proof yields both blocks encrypted to the legal key", async () => {
@@ -91,8 +114,10 @@ test("a verified proof yields both blocks encrypted to the legal key", async () 
   assert.deepEqual(bundle.query, { fullname: { disclose: true } })
   assert.deepEqual(bundle.artifacts.circuitManifest, manifest)
 
+  // The values must not reach the logs. (Whether they appear as substrings of
+  // the base64 armor is chance, so that is not checked; the decrypt above is
+  // what shows the ciphertext holds them.)
   for (const value of Object.values(expectedFields)) {
-    assert.ok(!body.fieldsBlockArmored.includes(value) && !body.bundleArmored.includes(value), `${value} must not appear in ciphertext`)
     assert.ok(!logs.join("\n").includes(value), `${value} must not appear in logs`)
   }
   assert.match(logs.join("\n"), /verified \(\d+ ms\)/)

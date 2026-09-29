@@ -3,7 +3,7 @@ const fs = require("node:fs")
 const { loadConfig } = require("./config")
 const { loadEncryptionKey, encryptText } = require("./pgp")
 const { createVerifier, BusyError, ServiceUnavailableError } = require("./verify")
-const { fieldsBlock, buildBundle } = require("./bundle")
+const { fieldsBlock, buildBundle, buildFailureBundle } = require("./bundle")
 const { setUpRegistry } = require("./registry")
 
 // A real submission is a few hundred kilobytes of proofs; anything near this
@@ -69,8 +69,21 @@ function createApp({ config, legalKey, verifier, registryClient, log = console.l
     try {
       const outcome = await verifier.verifyProof({ proofs: body.proofs, queryResult: body.queryResult })
       if (!outcome.verified) {
-        log(`verify ${identifier}: not verified (${Date.now() - started} ms)`)
-        return send(res, 200, { verified: false })
+        // Why it failed goes to legal encrypted. Our own log line carries only
+        // the stage; the SDK prints its messages to stderr itself, as it always has.
+        const failure = buildFailureBundle({
+          proofs: body.proofs,
+          queryResult: body.queryResult,
+          expectedQuery: verifier.expectedQuery,
+          identifier,
+          reference,
+          verifiedAt: new Date(),
+          config,
+          diagnostics: outcome.diagnostics,
+        })
+        const diagnosticsArmored = await encryptText(legalKey, JSON.stringify(failure, null, 2))
+        log(`verify ${identifier}: not verified at ${outcome.diagnostics.stage} (${Date.now() - started} ms)`)
+        return send(res, 200, { verified: false, diagnosticsArmored })
       }
 
       const verifiedAt = new Date()

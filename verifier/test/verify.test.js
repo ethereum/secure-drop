@@ -19,6 +19,14 @@ function rename(proofs, from, to) {
   return proofs.map((p) => (p.name === from ? { ...p, name: to } : p))
 }
 
+// A rejection names the stage it stopped at and never carries fields.
+function assertRejected(out, stage) {
+  assert.equal(out.verified, false)
+  assert.equal(out.diagnostics.stage, stage, JSON.stringify(out.diagnostics))
+  assert.ok(Array.isArray(out.diagnostics.reasons) && out.diagnostics.reasons.length > 0, "a rejection gives at least one reason")
+  assert.ok(!("fields" in out))
+}
+
 test("rejects anything that is not the proof set our request produces", async () => {
   const sdk = fakeSdk(true)
   const { verifyProof } = createVerifier({ ...settings, zkPassport: sdk })
@@ -46,7 +54,7 @@ test("rejects anything that is not the proof set our request produces", async ()
     { proofs: sampleProofs({ disclosedBytes: disclosedBytesFor(mrzBytes()).map((b, i) => (i === 53 ? 52 : b)) }), queryResult: {} }, // data where the mask says none
   ]
   for (const input of bad) {
-    assert.deepEqual(await verifyProof(input), { verified: false })
+    assertRejected(await verifyProof(input), "shape")
   }
   assert.equal(sdk.calls.length, 0)
 })
@@ -55,7 +63,7 @@ test("face match off means exactly four proofs", async () => {
   const sdk = fakeSdk(true)
   const { verifyProof } = createVerifier({ ...settings, facematch: "off", zkPassport: sdk })
   assert.equal((await verifyProof({ proofs: sampleProofs({ facematch: "off" }), queryResult: clientResult })).verified, true)
-  assert.deepEqual(await verifyProof({ proofs: sampleProofs(), queryResult: clientResult }), { verified: false })
+  assertRejected(await verifyProof({ proofs: sampleProofs(), queryResult: clientResult }), "shape")
   assert.equal(sdk.calls.length, 1)
 })
 
@@ -81,17 +89,37 @@ test("fields come from the proof's bytes, not the client's result", async () => 
   assert.ok(!JSON.stringify(out).includes("GBR"))
 })
 
-test("an unverified proof yields only verified:false", async () => {
-  const { verifyProof } = createVerifier({ ...settings, zkPassport: fakeSdk(false) })
-  assert.deepEqual(await verifyProof({ proofs: sampleProofs(), queryResult: clientResult }), { verified: false })
+test("an unverified proof yields the SDK's own reasons, and never fields or the nullifier", async () => {
+  // The SDK explains itself only through console.warn; those lines are the reasons.
+  const talkative = {
+    async verify() {
+      console.warn("The proof comes from a different domain than the one expected")
+      return { verified: false, uniqueIdentifier: "0xnullifier", queryResultErrors: { scope: { expected: "a", received: "b" } } }
+    },
+  }
+  const { verifyProof } = createVerifier({ ...settings, zkPassport: talkative })
+  const originalWarn = console.warn
+  const out = await verifyProof({ proofs: sampleProofs(), queryResult: clientResult })
+  assert.equal(console.warn, originalWarn, "console.warn is restored after the call")
+  assertRejected(out, "sdk")
+  assert.deepEqual(out.diagnostics.reasons, ["The proof comes from a different domain than the one expected"])
+  assert.deepEqual(out.diagnostics.queryResultErrors, { scope: { expected: "a", received: "b" } })
+  assert.equal(out.diagnostics.rootCheck.valid, true)
+  assert.ok(!JSON.stringify(out).includes("nullifier"))
+
+  // Warnings belong to the verification that printed them; a quiet one has none.
+  const quiet = createVerifier({ ...settings, zkPassport: fakeSdk(false) })
+  const again = await quiet.verifyProof({ proofs: sampleProofs(), queryResult: clientResult })
+  assert.equal(again.verified, false)
+  assert.deepEqual(again.diagnostics.reasons, [])
 })
 
 test("a non-passport document or a blank field is rejected even if the SDK says verified", async () => {
   const { verifyProof } = createVerifier({ ...settings, zkPassport: fakeSdk(true) })
   const idCard = sampleProofs({ mrz: mrzBytes({ documentCode: "I<" }) })
-  assert.deepEqual(await verifyProof({ proofs: idCard, queryResult: clientResult }), { verified: false })
+  assertRejected(await verifyProof({ proofs: idCard, queryResult: clientResult }), "constraints")
   const blankName = sampleProofs({ mrz: mrzBytes({ name: "<<" }) })
-  assert.deepEqual(await verifyProof({ proofs: blankName, queryResult: clientResult }), { verified: false })
+  assertRejected(await verifyProof({ proofs: blankName, queryResult: clientResult }), "fields")
 })
 
 test("a passport issued to a single name verifies, with an empty first name", async () => {
@@ -128,13 +156,18 @@ test("an SDK exception is an outage; a clean rejection is confirmed with our own
   const rootCheck = (answer) => async (root, timestamp) => { checks.push({ root, timestamp }); if (answer instanceof Error) throw answer; return answer }
 
   verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), checkCertificateRoot: rootCheck(true) })
-  assert.deepEqual(await verifier.verifyProof(input()), { verified: false })
+  let out = await verifier.verifyProof(input())
+  assert.equal(out.verified, false)
+  assert.equal(out.diagnostics.stage, "sdk")
+  assert.deepEqual(out.diagnostics.rootCheck, { root: "0x" + certificateRoot.toString(16).padStart(64, "0"), proofDate: proofDate.toISOString(), valid: true })
   assert.equal(checks.length, 1)
   assert.equal(checks[0].root, "0x" + certificateRoot.toString(16).padStart(64, "0"))
   assert.equal(checks[0].timestamp, Math.floor(proofDate.getTime() / 1000))
 
   verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), checkCertificateRoot: rootCheck(false) })
-  assert.deepEqual(await verifier.verifyProof(input()), { verified: false })
+  out = await verifier.verifyProof(input())
+  assert.equal(out.verified, false)
+  assert.equal(out.diagnostics.rootCheck.valid, false)
 
   verifier = createVerifier({ ...settings, zkPassport: fakeSdk(false), checkCertificateRoot: rootCheck(new Error("rpc down")) })
   await assert.rejects(verifier.verifyProof(input()), ServiceUnavailableError)

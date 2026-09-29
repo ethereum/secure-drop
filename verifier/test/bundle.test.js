@@ -1,6 +1,6 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
-const { fieldsBlock, buildBundle, formatTimestamp, bbPackageFor, BUNDLE_FORMAT } = require("../src/bundle")
+const { fieldsBlock, buildBundle, buildFailureBundle, formatTimestamp, bbPackageFor, BUNDLE_FORMAT, FAILURE_FORMAT } = require("../src/bundle")
 const { settings, proofDate, certificateRoot, sampleProofs, expectedFields } = require("./fixtures")
 
 const verifiedAt = new Date("2026-09-05T14:03:22Z")
@@ -103,6 +103,39 @@ test("bundle records what the proof says and what verified it", async () => {
   const json = JSON.stringify(bundle)
   assert.ok(json.length < 1024 * 1024)
   assert.deepEqual(JSON.parse(json).submission, bundle.submission)
+})
+
+test("failure bundle carries the stage, the reasons and the request, and tolerates garbage", () => {
+  const diagnostics = { stage: "sdk", reasons: ["The proof comes from a different domain than the one expected"], queryResultErrors: { scope: {} }, rootCheck: { valid: false } }
+  const failure = buildFailureBundle({ proofs, queryResult: { a: 1 }, expectedQuery: { fullname: { disclose: true } }, identifier: "legal:x", reference: "", verifiedAt, config: settings, diagnostics })
+  assert.equal(failure.format, FAILURE_FORMAT)
+  assert.equal(failure.verifiedAt, "2026-09-05T14:03:22.000Z")
+  assert.equal(failure.stage, "sdk")
+  assert.deepEqual(failure.reasons, diagnostics.reasons)
+  assert.deepEqual(failure.queryResultErrors, { scope: {} })
+  assert.deepEqual(failure.rootCheck, { valid: false })
+  assert.deepEqual(failure.binding, { domain: settings.domain, scope: "ef-onboarding", facematch: "strict", validitySeconds: 604800, chainId: 1 })
+  assert.equal(failure.software.circuitVersion, "1.0.0")
+  assert.equal(failure.software["secure-drop-verifier"], "abc1234")
+  assert.equal(failure.proofs, proofs)
+  assert.deepEqual(failure.queryResult, { a: 1 })
+  assert.equal(failure.request.replayable, true)
+  assert.deepEqual(failure.request.proofs, proofs.map((p) => p.name))
+  assert.match(failure.notes, /replay/)
+
+  // A request that failed the shape checks may not even be an array of proofs;
+  // it is described, not carried, so garbage cannot become a multi-MB attachment.
+  const garbage = buildFailureBundle({ proofs: "nope", queryResult: null, expectedQuery: {}, identifier: "legal:y", reference: "", verifiedAt, config: settings, diagnostics: { stage: "shape", reasons: ["the request does not contain exactly the proof set our query produces"] } })
+  assert.equal(garbage.stage, "shape")
+  assert.equal(garbage.software.circuitVersion, null)
+  assert.equal(garbage.software.verifiedWith, null)
+  assert.equal(garbage.queryResultErrors, null)
+  assert.deepEqual(garbage.request, { replayable: false, proofs: "string" })
+  assert.equal(garbage.proofs, undefined)
+  assert.equal(garbage.queryResult, undefined)
+  const huge = buildFailureBundle({ proofs: [{ ...proofs[0], proof: "ab".repeat(600 * 1024) }], queryResult: {}, expectedQuery: {}, identifier: "legal:z", reference: "", verifiedAt, config: settings, diagnostics: { stage: "shape", reasons: ["x"] } })
+  assert.equal(huge.request.replayable, false)
+  assert.equal(huge.proofs, undefined)
 })
 
 test("refuses to bundle a proof set that would not verify", async () => {
