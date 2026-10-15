@@ -22,6 +22,9 @@ function loadConfig(env = process.env) {
     publicKeysJsPath: path.resolve(env.PUBLIC_KEYS_JS_PATH || "/app/static/js/public-keys.js"),
     cacheDir,
     crsPath: path.join(cacheDir, ".bb-crs"),
+    // Ethereum mainnet RPC for the registry reads during verification. Unset
+    // leaves the SDK and the registry client on their built-in endpoint.
+    rpcUrl: env.ETH_RPC_URL?.trim() || undefined,
     gitSha: env.GIT_SHA || "unknown",
   }
 
@@ -30,6 +33,10 @@ function loadConfig(env = process.env) {
   }
   if (!FACEMATCH_MODES.includes(config.facematch)) {
     throw new Error(`ZKPASSPORT_FACEMATCH must be one of ${FACEMATCH_MODES.join(", ")}, got "${config.facematch}"`)
+  }
+  // The URL usually carries an API key, so the message does not repeat it.
+  if (config.rpcUrl !== undefined && !/^https?:\/\/\S+$/.test(config.rpcUrl)) {
+    throw new Error("ETH_RPC_URL must be an http(s) URL")
   }
   return config
 }

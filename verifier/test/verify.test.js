@@ -77,6 +77,14 @@ test("passes the server's query and scope, never the client's", async () => {
   assert.equal(sdk.calls[0].verifierMode, "local")
   assert.equal(sdk.calls[0].writingDirectory, "/tmp/zkp")
   assert.equal(sdk.calls[0].validity, undefined)
+  assert.equal(sdk.calls[0].config, undefined, "no RPC configured means the SDK's own endpoint")
+})
+
+test("the configured RPC reaches the SDK", async () => {
+  const sdk = fakeSdk(true)
+  const { verifyProof } = createVerifier({ ...settings, rpcUrl: "https://rpc.example/v1/secret", zkPassport: sdk })
+  await verifyProof({ proofs: sampleProofs(), queryResult: clientResult })
+  assert.deepEqual(sdk.calls[0].config, { rpcUrl: "https://rpc.example/v1/secret" })
 })
 
 test("fields come from the proof's bytes, not the client's result", async () => {

@@ -4,7 +4,7 @@ const { loadConfig } = require("./config")
 const { loadEncryptionKey, encryptText } = require("./pgp")
 const { createVerifier, BusyError, ServiceUnavailableError } = require("./verify")
 const { fieldsBlock, buildBundle, buildFailureBundle } = require("./bundle")
-const { setUpRegistry } = require("./registry")
+const { setUpRegistry, createRegistryClient } = require("./registry")
 
 // A real submission is a few hundred kilobytes of proofs; anything near this
 // limit is not one. Identifiers and references are short human-readable IDs.
@@ -128,10 +128,10 @@ async function main() {
   const legalKey = await loadEncryptionKey(config.publicKeysJsPath, "legal")
   // So the deployed key is visible in the logs, e.g. a test key left in place.
   console.log(`legal key ${legalKey.getFingerprint()} (${legalKey.getUserIDs().join(", ")})`)
-  const registryClient = await setUpRegistry()
+  const registryClient = await setUpRegistry(createRegistryClient(config))
   const verifier = createVerifier({ ...config, checkCertificateRoot: registryClient.checkCertificateRoot })
   const server = http.createServer(createApp({ config, legalKey, verifier, registryClient }))
-  server.listen(config.port, () => console.log(`verifier listening on ${config.port}, face match ${config.facematch}, cache ${config.cacheDir}`))
+  server.listen(config.port, () => console.log(`verifier listening on ${config.port}, face match ${config.facematch}, cache ${config.cacheDir}, rpc ${config.rpcUrl ? "own" : "built-in"}`))
 }
 
 if (require.main === module) {

@@ -21,6 +21,7 @@ services:
     environment:
       ZKPASSPORT_DOMAIN: ${ZKPASSPORT_DOMAIN}
       ZKPASSPORT_FACEMATCH: ${ZKPASSPORT_FACEMATCH:-strict}
+      ETH_RPC_URL: ${ETH_RPC_URL:-}
     volumes:
       - verifier-cache:/tmp/zkp
 
