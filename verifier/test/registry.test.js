@@ -1,6 +1,6 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
-const { setUpRegistry } = require("../src/registry")
+const { setUpRegistry, createRegistryClient } = require("../src/registry")
 
 function fakeClient({ rootAnswer = true, rootDelayMs = 0 } = {}) {
   const calls = { manifest: 0, addresses: 0, roots: [] }
@@ -45,4 +45,15 @@ test("the root check passes through answers and errors", async () => {
   assert.equal(await registry.checkCertificateRoot("0xabc", 1700000000), false)
   assert.deepEqual(client.calls.roots, [{ root: "0xabc", timestamp: 1700000000 }])
   await assert.rejects((await setUpRegistry(fakeClient({ rootAnswer: new Error("rpc down") }))).checkCertificateRoot("0x1", 1), /rpc down/)
+})
+
+test("the registry client reads mainnet through the configured RPC, or the built-in one", () => {
+  const own = createRegistryClient({ rpcUrl: "https://rpc.example/v1/secret" })
+  assert.equal(own.rpcUrl, "https://rpc.example/v1/secret")
+  const builtIn = createRegistryClient()
+  assert.match(builtIn.rpcUrl, /^https:\/\//)
+  // The root registry address is the same on every chain, so the chain id is
+  // the only thing that says which chain the roots are read from.
+  assert.equal(own.chainId, 1)
+  assert.equal(builtIn.chainId, 1)
 })

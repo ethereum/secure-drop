@@ -2,12 +2,19 @@ const { RegistryClient } = require("@zkpassport/registry")
 
 const ROOT_CHECK_TIMEOUT_MS = 10 * 1000
 
+// The client the verifier reads mainnet roots and manifests through. Without
+// an rpcUrl it uses the built-in endpoint, as the SDK does when verify() gets
+// no config, so both read the chain through the same RPC either way.
+function createRegistryClient({ rpcUrl } = {}) {
+  return new RegistryClient({ chainId: 1, rpcUrl })
+}
+
 // Wraps the registry client for the bundle builder: the two contract
 // addresses are resolved once at startup and the circuit manifest is cached
 // per circuit version, so a submission that has already verified cannot fail
 // on a repeated fetch. Also exposes the certificate root check the verifier
 // uses to tell a bad proof from an RPC outage.
-async function setUpRegistry(client = new RegistryClient({ chainId: 1 })) {
+async function setUpRegistry(client = createRegistryClient()) {
   const [certificateRegistry, circuitRegistry] = await Promise.all([
     client.getCertificateRegistryAddress(),
     client.getCircuitRegistryAddress(),
@@ -47,4 +54,4 @@ async function setUpRegistry(client = new RegistryClient({ chainId: 1 })) {
   }
 }
 
-module.exports = { setUpRegistry }
+module.exports = { setUpRegistry, createRegistryClient }

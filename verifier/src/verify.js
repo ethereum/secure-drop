@@ -203,9 +203,11 @@ function satisfiesConstraints(fields, expectedQuery) {
 // same check into "not verified", so after a clean SDK rejection the sidecar
 // repeats it: a throw means the RPC is down (our problem), an answer means the
 // rejection stands.
-function createVerifier({ domain, facematch, cacheDir = "/tmp/zkp", zkPassport = new ZKPassport(domain), checkCertificateRoot = async () => true }) {
+function createVerifier({ domain, facematch, cacheDir = "/tmp/zkp", rpcUrl, zkPassport = new ZKPassport(domain), checkCertificateRoot = async () => true }) {
   const expectedQuery = buildExpectedQuery({ domain, facematch })
   const expectedMask = expectedMaskFor(expectedQuery)
+  // Our own Ethereum RPC for the SDK's registry root checks, when one is set.
+  const sdkConfig = rpcUrl ? { rpcUrl } : undefined
   let queue = Promise.resolve()
   let waiting = 0
 
@@ -239,7 +241,7 @@ function createVerifier({ domain, facematch, cacheDir = "/tmp/zkp", zkPassport =
       // hosted verifier and would send the disclosed fields there.
       ;({ result, warnings } = await serialized(() =>
         withCapturedWarnings(() =>
-          zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope: SCOPE, verifierMode: "local", writingDirectory: cacheDir }),
+          zkPassport.verify({ proofs, originalQuery: expectedQuery, queryResult, scope: SCOPE, verifierMode: "local", writingDirectory: cacheDir, config: sdkConfig }),
         ),
       ))
     } catch (error) {

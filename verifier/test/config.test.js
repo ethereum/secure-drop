@@ -14,6 +14,7 @@ test("loads with defaults", () => {
     publicKeysJsPath: "/app/static/js/public-keys.js",
     cacheDir: "/tmp/zkp",
     crsPath: "/tmp/zkp/.bb-crs",
+    rpcUrl: undefined,
     gitSha: "unknown",
   })
 })
@@ -33,6 +34,18 @@ test("validates the port", () => {
   assert.throws(() => loadConfig({ ...minimal, PORT: "0" }), /PORT/)
   assert.throws(() => loadConfig({ ...minimal, PORT: "70000" }), /PORT/)
   assert.equal(loadConfig({ ...minimal, PORT: "4000" }).port, 4000)
+})
+
+test("validates the RPC URL and keeps it out of the error", () => {
+  assert.equal(loadConfig({ ...minimal, ETH_RPC_URL: "" }).rpcUrl, undefined)
+  assert.equal(loadConfig({ ...minimal, ETH_RPC_URL: "https://rpc.example/v1/secret" }).rpcUrl, "https://rpc.example/v1/secret")
+  // A secret made from a file usually ends in a newline.
+  assert.equal(loadConfig({ ...minimal, ETH_RPC_URL: "https://rpc.example/v1/secret\n" }).rpcUrl, "https://rpc.example/v1/secret")
+  assert.equal(loadConfig({ ...minimal, ETH_RPC_URL: "  \n" }).rpcUrl, undefined)
+  assert.throws(
+    () => loadConfig({ ...minimal, ETH_RPC_URL: "wss://rpc.example/v1/secret" }),
+    (error) => /ETH_RPC_URL/.test(error.message) && !error.message.includes("secret"),
+  )
 })
 
 test("overrides are applied", () => {
